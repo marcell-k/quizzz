@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func testGame() *Game {
@@ -351,6 +352,93 @@ func TestSetQuizResetsBoardKeepsScores(t *testing.T) {
 				t.Fatalf("cell %d,%d still used", ti, qi)
 			}
 		}
+	}
+}
+
+func TestTimerStartsOnFirstSelect(t *testing.T) {
+	g := boardGame(t)
+	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	if g.Timer.Started {
+		t.Fatal("timer started before first pick")
+	}
+	if !g.SelectAt(0, 0, t0) {
+		t.Fatal("select failed")
+	}
+	wantEnd := t0.Add(defaultGameDuration)
+	if !g.Timer.Started || !g.Timer.EndsAt.Equal(wantEnd) {
+		t.Fatalf("timer = %+v, want ends at %v", g.Timer, wantEnd)
+	}
+	if got := g.Timer.RemainingSecondsAt(t0); got != defaultGameMinutes*60 {
+		t.Fatalf("remaining = %d, want %d", got, defaultGameMinutes*60)
+	}
+
+	g.Plus(0)
+	later := t0.Add(5 * time.Minute)
+	if !g.SelectAt(0, 1, later) {
+		t.Fatal("second select failed")
+	}
+	if !g.Timer.EndsAt.Equal(wantEnd) {
+		t.Fatalf("second pick reset timer to %v, want %v", g.Timer.EndsAt, wantEnd)
+	}
+}
+
+func TestTimerPauseResume(t *testing.T) {
+	g := boardGame(t)
+	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	g.SelectAt(0, 0, t0)
+
+	pauseAt := t0.Add(10 * time.Minute)
+	if !g.Timer.Pause(pauseAt) {
+		t.Fatal("pause failed")
+	}
+	if !g.Timer.Paused() || g.Timer.Running() {
+		t.Fatalf("timer not paused: %+v", g.Timer)
+	}
+	if got := g.Timer.RemainingSecondsAt(pauseAt.Add(time.Hour)); got != 20*60 {
+		t.Fatalf("paused remaining = %d, want %d", got, 20*60)
+	}
+
+	resumeAt := pauseAt.Add(5 * time.Minute)
+	if !g.Timer.Resume(resumeAt) {
+		t.Fatal("resume failed")
+	}
+	if g.Timer.Paused() {
+		t.Fatal("timer still paused after resume")
+	}
+	if got := g.Timer.RemainingSecondsAt(resumeAt); got != 20*60 {
+		t.Fatalf("resumed remaining = %d, want %d", got, 20*60)
+	}
+	if got := g.Timer.RemainingSecondsAt(t0.Add(25 * time.Minute)); got != 10*60 {
+		t.Fatalf("remaining after 10 min = %d, want %d", got, 10*60)
+	}
+}
+
+func TestTimerClampsAtZero(t *testing.T) {
+	g := boardGame(t)
+	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	g.SelectAt(0, 0, t0)
+	if got := g.Timer.RemainingSecondsAt(t0.Add(time.Hour)); got != 0 {
+		t.Fatalf("remaining = %d, want 0", got)
+	}
+	if !g.Timer.Pause(t0.Add(time.Hour)) {
+		t.Fatal("pause at zero failed")
+	}
+	if g.Timer.Remaining != 0 {
+		t.Fatalf("paused remaining = %v, want 0", g.Timer.Remaining)
+	}
+	if g.Timer.Resume(t0.Add(2 * time.Hour)) {
+		t.Fatal("resumed a zero timer")
+	}
+}
+
+func TestSetQuizResetsTimer(t *testing.T) {
+	g := boardGame(t)
+	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	g.SelectAt(0, 0, t0)
+	g.Timer.Pause(t0.Add(time.Minute))
+	g.SetQuiz(testQuiz(t))
+	if g.Timer.Started || g.Timer.Running() || g.Timer.Remaining != defaultGameDuration {
+		t.Fatalf("timer after SetQuiz = %+v", g.Timer)
 	}
 }
 

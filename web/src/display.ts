@@ -1,7 +1,8 @@
 import { t } from "./strings";
 import { connect } from "./ws";
 import { teamColor } from "./colors";
-import type { ServerMsg, StateMsg } from "./protocol";
+import { formatClock, remainingSeconds, startTick } from "./timer";
+import type { ServerMsg, StateMsg, TimerInfo } from "./protocol";
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -22,6 +23,9 @@ function fmt(n: number): string {
 
 const main = el("main", "display-main");
 const scores = el("footer", "display-scores");
+const timerCard = el("div", "display-timer");
+const timerClock = el("span", "clock", "--:--");
+timerCard.append(el("span", "name", t.gameTime), timerClock);
 const qr = el("img", "display-qr");
 qr.src = "/qr.png";
 qr.alt = "";
@@ -34,12 +38,19 @@ document.body.replaceChildren(page);
 
 // ---- render ----
 
+let timerState: TimerInfo | null = null;
+
+function renderTimer(): void {
+  timerClock.textContent = timerState ? formatClock(remainingSeconds(timerState)) : "--:--";
+}
+
 function anyUsed(m: StateMsg): boolean {
   return m.used.some((row) => row.some(Boolean));
 }
 
 function renderScores(m: StateMsg): void {
   scores.replaceChildren(
+    timerCard,
     ...m.teams.flatMap((team, i) => {
       if (team.name === "") return [];
       const card = el("div", "display-team");
@@ -126,6 +137,8 @@ function renderEnded(): void {
 }
 
 function render(m: StateMsg): void {
+  timerState = m.timer;
+  renderTimer();
   renderScores(m);
   const beforeGame = m.current === null && !anyUsed(m) && m.round !== "lightning" && m.round !== "ended";
   qr.classList.toggle("hidden", !beforeGame);
@@ -156,3 +169,5 @@ connect(
     connEl.classList.remove("hidden");
   },
 );
+
+startTick(renderTimer);

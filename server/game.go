@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"strings"
+	"time"
 )
 
 type BuzzerState int
@@ -64,11 +65,96 @@ const (
 	maxNameLen = 30
 
 	// Temporary settings defaults until step 10 adds settings.json.
-	defaultTopics    = 5
-	defaultQuestions = 6
+	defaultTopics       = 5
+	defaultQuestions    = 6
+	defaultGameMinutes  = 30
+	defaultGameDuration = defaultGameMinutes * time.Minute
 )
 
 var defaultPoints = []int{1000, 2000, 3000, 4000, 5000, 8000}
+
+// Timer is a display-only countdown. Clients render EndsAt; the server owns
+// pause and resume. Zero does not stop the game.
+type Timer struct {
+	Started   bool
+	Remaining time.Duration
+	EndsAt    time.Time
+}
+
+func NewTimer(d time.Duration) Timer {
+	if d < 0 {
+		d = 0
+	}
+	return Timer{Remaining: d}
+}
+
+func (t *Timer) Reset(d time.Duration) {
+	*t = NewTimer(d)
+}
+
+// Running reports whether EndsAt is set.
+func (t *Timer) Running() bool {
+	return !t.EndsAt.IsZero()
+}
+
+// Start begins the countdown once. Later calls do not reset it.
+func (t *Timer) Start(now time.Time) {
+	if t.Started {
+		return
+	}
+	t.Started = true
+	t.EndsAt = now.Add(t.Remaining)
+}
+
+// Pause stores the exact remaining time and clears EndsAt.
+func (t *Timer) Pause(now time.Time) bool {
+	if !t.Running() {
+		return false
+	}
+	t.Remaining = t.RemainingAt(now)
+	t.EndsAt = time.Time{}
+	return true
+}
+
+// Resume restarts a paused timer. A zero or unstarted timer stays stopped.
+func (t *Timer) Resume(now time.Time) bool {
+	if !t.Started || t.Running() || t.Remaining <= 0 {
+		return false
+	}
+	t.EndsAt = now.Add(t.Remaining)
+	return true
+}
+
+func (t Timer) Paused() bool {
+	return t.Started && t.EndsAt.IsZero()
+}
+
+func (t Timer) RemainingAt(now time.Time) time.Duration {
+	if t.Running() {
+		d := t.EndsAt.Sub(now)
+		if d > 0 {
+			return d
+		}
+		return 0
+	}
+	if t.Remaining > 0 {
+		return t.Remaining
+	}
+	return 0
+}
+
+// RemainingSecondsAt rounds up, so 0.1 s left still displays as one second.
+func (t Timer) RemainingSecondsAt(now time.Time) int {
+	d := t.RemainingAt(now)
+	if d <= 0 {
+		return 0
+	}
+	s := int(d / time.Second)
+	if d%time.Second != 0 {
+		s++
+	}
+	return s
+}
 
 type Player struct {
 	ID     int
@@ -101,6 +187,7 @@ type Game struct {
 	Points   []int // points per question index, temporary until settings
 	Buzzer   BuzzerState
 	BuzzedBy int // player ID, 0 = none
+	Timer    Timer
 	nextID   int
 	newToken func() string
 }
@@ -116,6 +203,7 @@ func NewGame(teams []string, newToken func() string) *Game {
 		Points:   pointsForQuestions(defaultQuestions),
 		Round:    RoundBoard,
 		Buzzer:   BuzzerLocked,
+		Timer:    NewTimer(defaultGameDuration),
 		nextID:   1,
 		newToken: newToken,
 	}
@@ -159,6 +247,7 @@ func (g *Game) SetQuiz(q *Quiz) {
 	g.Buzzer = BuzzerLocked
 	g.BuzzedBy = 0
 	g.Round = RoundBoard
+	g.Timer.Reset(defaultGameDuration)
 }
 
 // Join order: token match, then same team+name, then new player.
@@ -227,6 +316,12 @@ func (g *Game) CancelBuzz() bool {
 // Select opens a board cell. Valid only on the board, with no current
 // question, and only for an unused cell. Buzzer opens immediately.
 func (g *Game) Select(topic, q int) bool {
+	return g.SelectAt(topic, q, time.Now())
+}
+
+// SelectAt is Select with an explicit clock, used by tests and the hub.
+// The first successful pick starts the round-1 timer.
+func (g *Game) SelectAt(topic, q int, now time.Time) bool {
 	if g.Quiz == nil || g.Round != RoundBoard || g.Current != nil {
 		return false
 	}
@@ -240,6 +335,7 @@ func (g *Game) Select(topic, q int) bool {
 	g.Current = &Current{Topic: topic, Q: q, Points: g.Points[q]}
 	g.Buzzer = BuzzerOpen
 	g.BuzzedBy = 0
+	g.Timer.Start(now)
 	return true
 }
 

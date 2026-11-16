@@ -1,7 +1,8 @@
 import { t, errorText } from "./strings";
 import { connect } from "./ws";
 import { teamColor } from "./colors";
-import type { BuzzerState, ServerMsg, StateMsg } from "./protocol";
+import { formatClock, remainingSeconds, startTick } from "./timer";
+import type { BuzzerState, ServerMsg, StateMsg, TimerInfo } from "./protocol";
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -63,24 +64,45 @@ actions.append(noneBtn, cancelBtn);
 const teamList = el("div", "team-list-admin");
 const playerList = el("ul", "player-list");
 
+const timerClock = el("p", "timer-clock", "00:00");
+const timerBtn = el("button", "btn timer-btn", t.pauseTimer);
+timerBtn.disabled = true;
+
+const boardPanel = panel(t.board, noQuiz, board);
+boardPanel.classList.add("wide");
+const questionPanel = panel(t.currentQuestion, qBox, actions, opMsg);
+questionPanel.classList.add("wide");
+const teamsPanel = panel(t.teams, teamList);
+teamsPanel.classList.add("wide");
+
 const grid = el("div", "admin");
 grid.append(
   panel(t.scanToJoin, qr, url, status, connEl),
   panel(t.quizFile, quizSel, loadBtn, quizMsg),
-  panel(t.board, noQuiz, board),
-  panel(t.currentQuestion, qBox, actions, opMsg),
-  panel(t.teams, teamList),
+  panel(t.gameTime, timerClock, timerBtn),
+  boardPanel,
+  questionPanel,
+  teamsPanel,
   panel(t.players, playerList),
 );
-grid.children[2]?.classList.add("wide");
-grid.children[3]?.classList.add("wide");
-grid.children[4]?.classList.add("wide");
 document.body.replaceChildren(h1, grid);
 
 // ---- state ----
 
 let peekFor = "";
 let loadPending = false;
+let timerState: TimerInfo | null = null;
+
+function renderTimer(): void {
+  if (!timerState) {
+    timerClock.textContent = "--:--";
+    timerBtn.disabled = true;
+    return;
+  }
+  timerClock.textContent = formatClock(remainingSeconds(timerState));
+  timerBtn.disabled = !timerState.started;
+  timerBtn.textContent = timerState.paused ? t.resumeTimer : t.pauseTimer;
+}
 
 function renderQuestion(m: StateMsg): void {
   const cur = m.current;
@@ -180,6 +202,8 @@ function renderPlayers(m: StateMsg): void {
 }
 
 function render(m: StateMsg): void {
+  timerState = m.timer;
+  renderTimer();
   const label = buzzerLabels[m.buzzer];
   const by = m.players.find((p) => p.id === m.buzzedBy);
   status.textContent = by
@@ -282,3 +306,10 @@ cancelBtn.onclick = () => {
   opMsg.textContent = "";
   conn.send({ type: "cancel_buzz" });
 };
+
+timerBtn.onclick = () => {
+  if (!timerState?.started) return;
+  conn.send({ type: "timer", action: timerState.paused ? "resume" : "pause" });
+};
+
+startTick(renderTimer);

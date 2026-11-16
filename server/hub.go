@@ -22,13 +22,14 @@ func newToken() string {
 // ---- wire types (keep in sync with web/src/protocol.ts) ----
 
 type inMsg struct {
-	Type  string `json:"type"`
-	Team  int    `json:"team"`
-	Name  string `json:"name"`
-	Token string `json:"token"`
-	Topic int    `json:"topic"`
-	Q     int    `json:"q"`
-	File  string `json:"file"`
+	Type   string `json:"type"`
+	Team   int    `json:"team"`
+	Name   string `json:"name"`
+	Token  string `json:"token"`
+	Topic  int    `json:"topic"`
+	Q      int    `json:"q"`
+	File   string `json:"file"`
+	Action string `json:"action"`
 }
 
 type statePlayer struct {
@@ -41,6 +42,13 @@ type statePlayer struct {
 type stateTeam struct {
 	Name  string `json:"name"`
 	Score int    `json:"score"`
+}
+
+type stateTimer struct {
+	Started   bool  `json:"started"`
+	Paused    bool  `json:"paused"`
+	Remaining int   `json:"remaining"`
+	EndsAt    int64 `json:"endsAt"`
 }
 
 type stateCurrent struct {
@@ -63,6 +71,7 @@ type stateMsg struct {
 	Points   []int         `json:"points"`
 	Used     [][]bool      `json:"used"`
 	Current  *stateCurrent `json:"current"`
+	Timer    stateTimer    `json:"timer"`
 }
 
 type joinedMsg struct {
@@ -175,8 +184,21 @@ func (h *Hub) broadcastState() {
 	}
 }
 
+func timerState(t Timer, now time.Time) stateTimer {
+	st := stateTimer{
+		Started:   t.Started,
+		Paused:    t.Paused(),
+		Remaining: t.RemainingSecondsAt(now),
+	}
+	if t.Running() {
+		st.EndsAt = t.EndsAt.UnixMilli()
+	}
+	return st
+}
+
 func (h *Hub) stateJSON() []byte {
 	g := h.game
+	now := time.Now()
 	ps := make([]statePlayer, 0, len(g.Players))
 	for _, p := range g.Players {
 		ps = append(ps, statePlayer{ID: p.ID, Team: p.Team, Name: p.Name, Online: p.Online})
@@ -227,6 +249,7 @@ func (h *Hub) stateJSON() []byte {
 		Points:   points,
 		Used:     used,
 		Current:  current,
+		Timer:    timerState(g.Timer, now),
 	})
 }
 
@@ -284,6 +307,22 @@ func (h *Hub) handle(c *client, data []byte) {
 		} else {
 			h.sendError(c, "no_buzz")
 		}
+	case "timer":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		switch m.Action {
+		case "pause":
+			h.game.Timer.Pause(time.Now())
+		case "resume":
+			h.game.Timer.Resume(time.Now())
+		default:
+			h.sendError(c, "bad_message")
+			return
+		}
+		log.Printf("timer %s", m.Action)
+		h.broadcastState()
 	case "select":
 		if !c.admin {
 			h.sendError(c, "forbidden")
@@ -333,7 +372,7 @@ func (h *Hub) onSelect(c *client, m inMsg) {
 		h.sendError(c, "busy")
 		return
 	}
-	if !h.game.Select(m.Topic, m.Q) {
+	if !h.game.SelectAt(m.Topic, m.Q, time.Now()) {
 		h.sendError(c, "bad_cell")
 		return
 	}

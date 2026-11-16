@@ -42,6 +42,9 @@ export const t = {
   buzzOpen: "Lehet jelentkezni",
   lightningTitle: "Villámkérdések",
   gameEnded: "Játék vége",
+  gameTime: "Játékidő",
+  pauseTimer: "Szünet",
+  resumeTimer: "Folytatás",
 } as const;
 
 const errors: Record<string, string> = {

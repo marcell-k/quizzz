@@ -8,6 +8,7 @@ export type PlusMsg = { type: "plus"; team: number };
 export type MinusMsg = { type: "minus"; team: number };
 export type NoneMsg = { type: "none" };
 export type LoadQuizMsg = { type: "load_quiz"; file: string };
+export type TimerMsg = { type: "timer"; action: "pause" | "resume" };
 
 export type ClientMsg =
   | JoinMsg
@@ -17,7 +18,8 @@ export type ClientMsg =
   | PlusMsg
   | MinusMsg
   | NoneMsg
-  | LoadQuizMsg;
+  | LoadQuizMsg
+  | TimerMsg;
 
 export type BuzzerState = "locked" | "open" | "buzzed";
 export type Round = "setup" | "board" | "lightning" | "ended";
@@ -43,6 +45,13 @@ export interface CurrentInfo {
   image: string;
 }
 
+export interface TimerInfo {
+  started: boolean;
+  paused: boolean;
+  remaining: number;
+  endsAt: number;
+}
+
 export type StateMsg = {
   type: "state";
   teams: TeamInfo[];
@@ -54,6 +63,7 @@ export type StateMsg = {
   points: number[];
   used: boolean[][];
   current: CurrentInfo | null;
+  timer: TimerInfo;
 };
 export type JoinedMsg = { type: "joined"; id: number; token: string; team: number; name: string };
 export type TooLateMsg = { type: "too_late" };
