@@ -294,6 +294,116 @@ func TestScoreTeamIsolation(t *testing.T) {
 	}
 }
 
+func TestStartLightning(t *testing.T) {
+	g := boardGame(t)
+	now := time.Now()
+	if !g.Select(1, 1) {
+		t.Fatal("select failed")
+	}
+	if !g.StartLightning(now) {
+		t.Fatal("start lightning failed")
+	}
+	if g.Round != RoundLightning {
+		t.Fatalf("round = %v, want lightning", g.Round)
+	}
+	if g.Current != nil {
+		t.Fatalf("current question kept: %+v", g.Current)
+	}
+	if g.Buzzer != BuzzerOpen || g.BuzzedBy != 0 {
+		t.Fatalf("buzzer = %v by %d, want open by 0", g.Buzzer, g.BuzzedBy)
+	}
+	if !g.Board[1][1] {
+		t.Fatal("cell un-used after lightning start")
+	}
+	if !g.Timer.Started || !g.Timer.Running() {
+		t.Fatal("lightning timer not running")
+	}
+	if got := g.Timer.RemainingSecondsAt(now); got != 180 {
+		t.Fatalf("lightning timer = %d s, want 180", got)
+	}
+	if g.StartLightning(now) {
+		t.Fatal("second start lightning accepted")
+	}
+}
+
+func TestLightningScoring(t *testing.T) {
+	g := boardGame(t)
+	a := mustJoin(t, g, 0, "Anna", "")
+	g.StartLightning(time.Now())
+	if r := g.Buzz(a.ID); r != BuzzWon {
+		t.Fatalf("buzz = %v, want won", r)
+	}
+	if !g.Plus(1) {
+		t.Fatal("lightning plus failed")
+	}
+	if g.Teams[1].Score != 3000 {
+		t.Fatalf("score = %d, want 3000", g.Teams[1].Score)
+	}
+	if g.Buzzer != BuzzerOpen || g.BuzzedBy != 0 {
+		t.Fatalf("buzzer = %v by %d, want open", g.Buzzer, g.BuzzedBy)
+	}
+	if !g.Minus(1) {
+		t.Fatal("lightning minus failed")
+	}
+	if g.Teams[1].Score != 0 {
+		t.Fatalf("score = %d, want 0", g.Teams[1].Score)
+	}
+	for _, team := range []int{-1, 3, 4, 5} {
+		if g.Plus(team) {
+			t.Fatalf("lightning plus accepted team %d", team)
+		}
+	}
+	if g.None() {
+		t.Fatal("none accepted in lightning")
+	}
+	if g.Teams[1].Score != 0 {
+		t.Fatalf("score changed after invalid actions: %d", g.Teams[1].Score)
+	}
+	if g.Timer.Paused() {
+		t.Fatal("timer paused after lightning scoring")
+	}
+}
+
+func TestEndGame(t *testing.T) {
+	g := boardGame(t)
+	a := mustJoin(t, g, 0, "Anna", "")
+	now := time.Now()
+	g.StartLightning(now)
+	if r := g.Buzz(a.ID); r != BuzzWon {
+		t.Fatalf("buzz = %v, want won", r)
+	}
+	end := now.Add(time.Second)
+	if !g.EndGame(end) {
+		t.Fatal("end game failed")
+	}
+	if g.Round != RoundEnded {
+		t.Fatalf("round = %v, want ended", g.Round)
+	}
+	if g.Buzzer != BuzzerLocked || g.BuzzedBy != 0 {
+		t.Fatalf("buzzer = %v by %d, want locked", g.Buzzer, g.BuzzedBy)
+	}
+	if !g.Timer.Paused() {
+		t.Fatal("timer not paused after end game")
+	}
+	if g.Plus(0) || g.StartLightning(end) || g.EndGame(end) {
+		t.Fatal("action accepted after game end")
+	}
+	if r := g.Buzz(a.ID); r != BuzzLate {
+		t.Fatalf("buzz after end = %v, want late", r)
+	}
+}
+
+func TestEndGameFromBoard(t *testing.T) {
+	g := boardGame(t)
+	g.Select(0, 0)
+	if !g.EndGame(time.Now()) {
+		t.Fatal("end game from board failed")
+	}
+	if g.Round != RoundEnded || g.Current != nil || g.Buzzer != BuzzerLocked {
+		t.Fatalf("bad ended state: round=%v current=%+v buzzer=%v", g.Round, g.Current, g.Buzzer)
+	}
+}
+
 func TestNone(t *testing.T) {
 	g := boardGame(t)
 	if g.None() {

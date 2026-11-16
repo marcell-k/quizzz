@@ -35,7 +35,7 @@ type Quiz struct {
 	Questions      [][]string
 	HasImage       [][]bool
 	Images         [][]string // file name with extension, empty = no image
-	LightningImage bool
+	LightningImage string     // file name with extension, empty = no image
 }
 
 const (
@@ -167,7 +167,7 @@ func (q *Quiz) findImages(path string, questions int) {
 			q.HasImage[t][k] = q.Images[t][k] != ""
 		}
 	}
-	q.LightningImage = findImage(dir, q.File+"_lightning") != ""
+	q.LightningImage = findImage(dir, q.File+"_lightning")
 }
 
 // findImage returns the file name with its extension, or "" when missing.

@@ -65,10 +65,13 @@ const (
 	maxNameLen = 30
 
 	// Temporary settings defaults until step 10 adds settings.json.
-	defaultTopics       = 5
-	defaultQuestions    = 6
-	defaultGameMinutes  = 30
-	defaultGameDuration = defaultGameMinutes * time.Minute
+	defaultTopics          = 5
+	defaultQuestions       = 6
+	defaultGameMinutes     = 30
+	defaultGameDuration    = defaultGameMinutes * time.Minute
+	defaultLightningPoints = 3000
+	// Old Delphi app default lightning length: 3 minutes.
+	defaultLightningDuration = 3 * time.Minute
 )
 
 var defaultPoints = []int{1000, 2000, 3000, 4000, 5000, 8000}
@@ -188,6 +191,11 @@ type Game struct {
 	Buzzer   BuzzerState
 	BuzzedBy int // player ID, 0 = none
 	Timer    Timer
+
+	// Temporary values until step 10 adds settings.json.
+	LightningPoints   int
+	LightningDuration time.Duration
+
 	nextID   int
 	newToken func() string
 }
@@ -199,13 +207,15 @@ func NewGame(teams []string, newToken func() string) *Game {
 		ts[i] = Team{Name: name}
 	}
 	return &Game{
-		Teams:    ts,
-		Points:   pointsForQuestions(defaultQuestions),
-		Round:    RoundBoard,
-		Buzzer:   BuzzerLocked,
-		Timer:    NewTimer(defaultGameDuration),
-		nextID:   1,
-		newToken: newToken,
+		Teams:             ts,
+		Points:            pointsForQuestions(defaultQuestions),
+		Round:             RoundBoard,
+		Buzzer:            BuzzerLocked,
+		Timer:             NewTimer(defaultGameDuration),
+		LightningPoints:   defaultLightningPoints,
+		LightningDuration: defaultLightningDuration,
+		nextID:            1,
+		newToken:          newToken,
 	}
 }
 
@@ -339,22 +349,62 @@ func (g *Game) SelectAt(topic, q int, now time.Time) bool {
 	return true
 }
 
-// Plus awards the current question points to a team, then clears the question.
-func (g *Game) Plus(team int) bool {
-	if g.Current == nil || !g.validTeam(team) {
+// StartLightning switches from the board to lightning questions. Allowed any
+// time on the board, even with an open question: the cell stays used and the
+// current question is discarded. The buzzer opens and the lightning clock
+// resets and starts.
+func (g *Game) StartLightning(now time.Time) bool {
+	if g.Round != RoundBoard {
 		return false
 	}
-	g.Teams[team].Score += g.Current.Points
-	g.clearQuestion()
+	g.Round = RoundLightning
+	g.Current = nil
+	g.BuzzedBy = 0
+	g.Buzzer = BuzzerOpen
+	g.Timer.Reset(g.LightningDuration)
+	g.Timer.Start(now)
 	return true
 }
 
-// Minus subtracts the current question points (rule default: on), then clears.
-func (g *Game) Minus(team int) bool {
-	if g.Current == nil || !g.validTeam(team) {
+// EndGame stops the game: buzzer locked, current question cleared, timer
+// paused. Results and history are added in a later step.
+func (g *Game) EndGame(now time.Time) bool {
+	if g.Round == RoundEnded {
 		return false
 	}
-	g.Teams[team].Score -= g.Current.Points
+	g.Round = RoundEnded
+	g.Current = nil
+	g.BuzzedBy = 0
+	g.Buzzer = BuzzerLocked
+	g.Timer.Pause(now)
+	return true
+}
+
+// Plus awards the current question points to a team, then clears the question.
+// In lightning it awards LightningPoints and reopens the buzzer instead.
+func (g *Game) Plus(team int) bool { return g.score(team, 1) }
+
+// Minus subtracts the current question points (rule default: on), then clears.
+// In lightning it subtracts LightningPoints and reopens the buzzer instead.
+func (g *Game) Minus(team int) bool { return g.score(team, -1) }
+
+// score handles both rounds. On the board it uses Current question points and
+// clears the question. In lightning it uses LightningPoints and reopens the
+// buzzer right after every press.
+func (g *Game) score(team, sign int) bool {
+	if !g.validTeam(team) {
+		return false
+	}
+	if g.Round == RoundLightning {
+		g.Teams[team].Score += sign * g.LightningPoints
+		g.Buzzer = BuzzerOpen
+		g.BuzzedBy = 0
+		return true
+	}
+	if g.Current == nil {
+		return false
+	}
+	g.Teams[team].Score += sign * g.Current.Points
 	g.clearQuestion()
 	return true
 }

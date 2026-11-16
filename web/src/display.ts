@@ -24,8 +24,9 @@ function fmt(n: number): string {
 const main = el("main", "display-main");
 const scores = el("footer", "display-scores");
 const timerCard = el("div", "display-timer");
+const timerName = el("span", "name", t.gameTime);
 const timerClock = el("span", "clock", "--:--");
-timerCard.append(el("span", "name", t.gameTime), timerClock);
+timerCard.append(timerName, timerClock);
 const qr = el("img", "display-qr");
 qr.src = "/qr.png";
 qr.alt = "";
@@ -126,7 +127,19 @@ function renderQuestion(m: StateMsg): void {
 
 function renderLightning(m: StateMsg): void {
   const box = el("div", "display-question");
-  box.append(el("h1", "display-title", t.lightningTitle), whoLine(m));
+  if (m.lightningImage !== "") {
+    const img = el("img", "display-qimg display-lightning-img");
+    img.src = m.lightningImage;
+    img.alt = "";
+    img.onerror = () => {
+      img.remove();
+      box.prepend(el("h1", "display-title", t.lightningTitle));
+    };
+    box.append(img);
+  } else {
+    box.append(el("h1", "display-title", t.lightningTitle));
+  }
+  box.append(whoLine(m));
   main.replaceChildren(box);
 }
 
@@ -138,6 +151,7 @@ function renderEnded(): void {
 
 function render(m: StateMsg): void {
   timerState = m.timer;
+  timerName.textContent = m.round === "lightning" ? t.lightningTime : t.gameTime;
   renderTimer();
   renderScores(m);
   const beforeGame = m.current === null && !anyUsed(m) && m.round !== "lightning" && m.round !== "ended";

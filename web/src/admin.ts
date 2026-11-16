@@ -2,7 +2,7 @@ import { t, errorText } from "./strings";
 import { connect } from "./ws";
 import { teamColor } from "./colors";
 import { formatClock, remainingSeconds, startTick } from "./timer";
-import type { BuzzerState, ServerMsg, StateMsg, TimerInfo } from "./protocol";
+import type { BuzzerState, Round, ServerMsg, StateMsg, TimerInfo } from "./protocol";
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -68,6 +68,11 @@ const timerClock = el("p", "timer-clock", "00:00");
 const timerBtn = el("button", "btn timer-btn", t.pauseTimer);
 timerBtn.disabled = true;
 
+const startLightningBtn = el("button", "btn", t.startLightning);
+const endGameBtn = el("button", "btn", t.endGame);
+startLightningBtn.disabled = true;
+endGameBtn.disabled = true;
+
 const boardPanel = panel(t.board, noQuiz, board);
 boardPanel.classList.add("wide");
 const questionPanel = panel(t.currentQuestion, qBox, actions, opMsg);
@@ -80,6 +85,7 @@ grid.append(
   panel(t.scanToJoin, qr, url, status, connEl),
   panel(t.quizFile, quizSel, loadBtn, quizMsg),
   panel(t.gameTime, timerClock, timerBtn),
+  panel(t.gameFlow, startLightningBtn, endGameBtn),
   boardPanel,
   questionPanel,
   teamsPanel,
@@ -92,6 +98,23 @@ document.body.replaceChildren(h1, grid);
 let peekFor = "";
 let loadPending = false;
 let timerState: TimerInfo | null = null;
+let currentRound: Round = "board";
+let lastState: StateMsg | null = null;
+let lightningPrompted = false;
+
+function boardFull(m: StateMsg): boolean {
+  return m.used.length > 0 && m.used.every((row) => row.length > 0 && row.every(Boolean));
+}
+
+function maybePromptLightning(m: StateMsg): void {
+  if (!boardFull(m)) {
+    lightningPrompted = false;
+    return;
+  }
+  if (m.round !== "board" || lightningPrompted) return;
+  lightningPrompted = true;
+  if (confirm(t.confirmLightningFull)) conn.send({ type: "start_lightning" });
+}
 
 function renderTimer(): void {
   if (!timerState) {
@@ -100,11 +123,22 @@ function renderTimer(): void {
     return;
   }
   timerClock.textContent = formatClock(remainingSeconds(timerState));
-  timerBtn.disabled = !timerState.started;
+  timerBtn.disabled = !timerState.started || currentRound === "ended";
   timerBtn.textContent = timerState.paused ? t.resumeTimer : t.pauseTimer;
 }
 
 function renderQuestion(m: StateMsg): void {
+  if (m.round === "lightning") {
+    qBox.replaceChildren(
+      el("p", "qmeta", `${t.lightningTitle} · ${fmt(m.lightningPoints)}`),
+      el("p", "hint", t.lightningHint),
+    );
+    return;
+  }
+  if (m.round === "ended") {
+    qBox.replaceChildren(el("p", "hint", t.gameEnded));
+    return;
+  }
   const cur = m.current;
   if (!cur) {
     qBox.replaceChildren(el("p", "hint", t.noCurrent));
@@ -152,7 +186,7 @@ function renderBoard(m: StateMsg): void {
       const used = m.used[ti]?.[q] ?? false;
       const b = el("button", "cell", fmt(m.points[q] ?? 0));
       b.type = "button";
-      b.disabled = used || m.current !== null;
+      b.disabled = used || m.current !== null || m.round !== "board";
       if (used) b.classList.add("used");
       b.onclick = () => {
         opMsg.textContent = "";
@@ -173,14 +207,14 @@ function renderTeams(m: StateMsg): void {
     dot.style.background = teamColor(i);
     const plus = el("button", "score-btn", "+");
     plus.type = "button";
-    plus.disabled = m.current === null;
+    plus.disabled = m.current === null && m.round !== "lightning";
     plus.onclick = () => {
       opMsg.textContent = "";
       conn.send({ type: "plus", team: i });
     };
     const minus = el("button", "score-btn", "−");
     minus.type = "button";
-    minus.disabled = m.current === null;
+    minus.disabled = m.current === null && m.round !== "lightning";
     minus.onclick = () => {
       opMsg.textContent = "";
       conn.send({ type: "minus", team: i });
@@ -202,6 +236,7 @@ function renderPlayers(m: StateMsg): void {
 }
 
 function render(m: StateMsg): void {
+  currentRound = m.round;
   timerState = m.timer;
   renderTimer();
   const label = buzzerLabels[m.buzzer];
@@ -211,6 +246,8 @@ function render(m: StateMsg): void {
     : `${t.buzzer}: ${label}`;
   noneBtn.disabled = m.current === null;
   cancelBtn.disabled = m.buzzer !== "buzzed";
+  startLightningBtn.disabled = m.round !== "board";
+  endGameBtn.disabled = m.round === "ended";
   renderBoard(m);
   renderQuestion(m);
   renderTeams(m);
@@ -222,7 +259,9 @@ function onMsg(m: ServerMsg): void {
     case "state":
       loadPending = false;
       quizMsg.textContent = "";
+      lastState = m;
       render(m);
+      maybePromptLightning(m);
       break;
     case "error": {
       const text = errorText(m.msg);
@@ -310,6 +349,19 @@ cancelBtn.onclick = () => {
 timerBtn.onclick = () => {
   if (!timerState?.started) return;
   conn.send({ type: "timer", action: timerState.paused ? "resume" : "pause" });
+};
+
+startLightningBtn.onclick = () => {
+  if (!lastState) return;
+  opMsg.textContent = "";
+  if (!confirm(boardFull(lastState) ? t.confirmLightningFull : t.confirmLightning)) return;
+  conn.send({ type: "start_lightning" });
+};
+
+endGameBtn.onclick = () => {
+  opMsg.textContent = "";
+  if (!confirm(t.confirmEndGame)) return;
+  conn.send({ type: "end_game" });
 };
 
 startTick(renderTimer);

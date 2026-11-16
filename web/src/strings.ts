@@ -41,6 +41,14 @@ export const t = {
   points: "pont",
   buzzOpen: "Lehet jelentkezni",
   lightningTitle: "Villámkérdések",
+  lightningTime: "Villámidő",
+  lightningHint: "A tanár felolvassa a kérdést. Pontozás után a jelentkezés újra nyílik.",
+  gameFlow: "Játék menete",
+  startLightning: "Villámkérdések indítása",
+  endGame: "Játék befejezése",
+  confirmLightning: "Nem minden kérdés van felhasználva. Biztosan indítod a villámkérdéseket?",
+  confirmLightningFull: "Minden kérdés felhasználva. Indítod a villámkérdéseket?",
+  confirmEndGame: "Biztosan véget ér a játék?",
   gameEnded: "Játék vége",
   gameTime: "Játékidő",
   pauseTimer: "Szünet",
@@ -64,6 +72,7 @@ const errors: Record<string, string> = {
   quiz_format: "Hibás feladatsor.",
   load_failed: "A feladatsor betöltése nem sikerült.",
   no_buzz: "Nincs jelentkezés.",
+  bad_round: "Hibás kör.",
 };
 
 export function errorText(code: string): string {

@@ -206,8 +206,8 @@ func TestLoadQuizImages(t *testing.T) {
 			}
 		}
 	}
-	if !q.LightningImage {
-		t.Error("LightningImage = false, want true")
+	if q.LightningImage != "quiz_lightning.png" {
+		t.Errorf("LightningImage = %q, want quiz_lightning.png", q.LightningImage)
 	}
 }
 
@@ -217,8 +217,8 @@ func TestLoadQuizNoImages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadQuiz: %v", err)
 	}
-	if q.HasImage[0][0] || q.LightningImage {
-		t.Errorf("HasImage = %v, lightning = %v, want all false", q.HasImage, q.LightningImage)
+	if q.HasImage[0][0] || q.LightningImage != "" {
+		t.Errorf("HasImage = %v, lightning = %q, want all empty", q.HasImage, q.LightningImage)
 	}
 }
 

@@ -72,6 +72,9 @@ type stateMsg struct {
 	Used     [][]bool      `json:"used"`
 	Current  *stateCurrent `json:"current"`
 	Timer    stateTimer    `json:"timer"`
+
+	LightningPoints int    `json:"lightningPoints"`
+	LightningImage  string `json:"lightningImage"`
 }
 
 type joinedMsg struct {
@@ -211,11 +214,15 @@ func (h *Hub) stateJSON() []byte {
 	topics := []string{}
 	used := [][]bool{}
 	points := g.Points
+	lightningImage := ""
 	if points == nil {
 		points = []int{}
 	}
 	if g.Quiz != nil {
 		topics = g.Quiz.Topics
+		if g.Quiz.LightningImage != "" {
+			lightningImage = "/media/quizzes/" + g.Quiz.LightningImage
+		}
 	}
 	if g.Board != nil {
 		used = g.Board
@@ -250,6 +257,9 @@ func (h *Hub) stateJSON() []byte {
 		Used:     used,
 		Current:  current,
 		Timer:    timerState(g.Timer, now),
+
+		LightningPoints: g.LightningPoints,
+		LightningImage:  lightningImage,
 	})
 }
 
@@ -352,6 +362,28 @@ func (h *Hub) handle(c *client, data []byte) {
 		} else {
 			h.sendError(c, "no_question")
 		}
+	case "start_lightning":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		if !h.game.StartLightning(time.Now()) {
+			h.sendError(c, "bad_round")
+			return
+		}
+		log.Printf("lightning started")
+		h.broadcastState()
+	case "end_game":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		if !h.game.EndGame(time.Now()) {
+			h.sendError(c, "bad_round")
+			return
+		}
+		log.Printf("game ended")
+		h.broadcastState()
 	case "load_quiz":
 		if !c.admin {
 			h.sendError(c, "forbidden")
@@ -381,11 +413,12 @@ func (h *Hub) onSelect(c *client, m inMsg) {
 }
 
 func (h *Hub) onScore(c *client, team, sign int) {
-	if h.game.Current == nil {
-		h.sendError(c, "no_question")
-		return
+	points := 0
+	if h.game.Round == RoundLightning {
+		points = h.game.LightningPoints
+	} else if h.game.Current != nil {
+		points = h.game.Current.Points
 	}
-	points := h.game.Current.Points
 	var ok bool
 	if sign > 0 {
 		ok = h.game.Plus(team)
@@ -393,7 +426,11 @@ func (h *Hub) onScore(c *client, team, sign int) {
 		ok = h.game.Minus(team)
 	}
 	if !ok {
-		h.sendError(c, "bad_team")
+		if h.game.Round == RoundLightning || h.game.Current != nil {
+			h.sendError(c, "bad_team")
+		} else {
+			h.sendError(c, "no_question")
+		}
 		return
 	}
 	log.Printf("score %+d: %s -> %d", sign*points, h.teamName(team), h.game.Teams[team].Score)
