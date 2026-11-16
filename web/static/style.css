@@ -171,3 +171,187 @@ body {
   font-size: 0.9rem;
   color: #b00;
 }
+
+/* ---- admin page ---- */
+
+.admin {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  gap: 1rem;
+  align-items: start;
+  max-width: 1300px;
+}
+
+.panel {
+  border: 1px solid #ddd;
+  border-radius: 0.7rem;
+  padding: 0.8rem;
+  background: #fafafa;
+}
+
+.panel.wide {
+  grid-column: 1 / -1;
+}
+
+.panel h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.status {
+  margin: 0.4rem 0;
+  font-weight: 600;
+}
+
+.admin .conn {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #080;
+}
+
+.admin .conn.offline {
+  color: #b00;
+}
+
+.panel select {
+  font: inherit;
+  padding: 0.45rem;
+  border: 1px solid #bbb;
+  border-radius: 0.5rem;
+  max-width: 100%;
+  margin-right: 0.4rem;
+}
+
+.board {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.board .col {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.6rem;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.board .topic {
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  border-radius: 0.4rem;
+  background: #efefef;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.board .cell {
+  min-height: 2.7rem;
+  border: 1px solid #ccc;
+  border-radius: 0.4rem;
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.board .cell:hover:not(:disabled) {
+  background: #ffe9e9;
+}
+
+.board .cell:disabled {
+  background: #e4e4e4;
+  color: #999;
+  cursor: default;
+}
+
+.board .cell.used {
+  text-decoration: line-through;
+}
+
+.qbox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 4rem;
+}
+
+.qmeta {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.qtext {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.actions .btn {
+  padding: 0.6rem 1rem;
+}
+
+.team-list-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.team-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.team-row .dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+}
+
+.team-row .tname {
+  overflow-wrap: anywhere;
+}
+
+.team-row .score {
+  min-width: 4.5rem;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.team-row .score-btn {
+  width: 2.4rem;
+  height: 2.2rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #222;
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.team-row .score-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.player-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}

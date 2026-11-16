@@ -255,3 +255,47 @@ func TestLoadQuizMissingFile(t *testing.T) {
 		t.Errorf("err = %v, want os file error", err)
 	}
 }
+
+func TestQuizPath(t *testing.T) {
+	dir := t.TempDir()
+	got, err := quizPath(dir, "quiz.txt")
+	if err != nil || got != filepath.Join(dir, "quiz.txt") {
+		t.Fatalf("quizPath = %q, %v", got, err)
+	}
+	if _, err := quizPath(dir, "QUIZ.TXT"); err != nil {
+		t.Errorf("uppercase extension rejected: %v", err)
+	}
+	for _, name := range []string{"", "../quiz.txt", `..\quiz.txt`, "sub/quiz.txt", "quiz.jpg", "."} {
+		if _, err := quizPath(dir, name); !errors.Is(err, ErrBadQuizName) {
+			t.Errorf("quizPath(%q) = %v, want ErrBadQuizName", name, err)
+		}
+	}
+}
+
+func TestListQuizzes(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"b.txt", "A.TXT", "note.md"} {
+		writeFile(t, dir, name, "x")
+	}
+	if err := os.Mkdir(filepath.Join(dir, "folder.txt"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	names, err := listQuizzes(dir)
+	if err != nil {
+		t.Fatalf("listQuizzes: %v", err)
+	}
+	want := []string{"A.TXT", "b.txt"}
+	if len(names) != len(want) {
+		t.Fatalf("names = %v, want %v", names, want)
+	}
+	for i := range want {
+		if names[i] != want[i] {
+			t.Errorf("names[%d] = %q, want %q", i, names[i], want[i])
+		}
+	}
+
+	missing, err := listQuizzes(filepath.Join(dir, "nope"))
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("missing dir = %v, %v; want empty", missing, err)
+	}
+}

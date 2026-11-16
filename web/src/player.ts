@@ -207,7 +207,7 @@ function setOnline(v: boolean): void {
 function onMsg(m: ServerMsg): void {
   switch (m.type) {
     case "state": {
-      teams = m.teams;
+      teams = m.teams.map((x) => x.name);
       const key = teams.join("|");
       if (key !== lastTeamsKey) {
         lastTeamsKey = key;

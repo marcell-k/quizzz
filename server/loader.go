@@ -3,14 +3,19 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
 
 // ErrNotUTF8 is plan D12: no silent encoding guessing, bad bytes are an error.
 var ErrNotUTF8 = errors.New("File not UTF-8. Convert first.")
+
+// ErrBadQuizName rejects anything that is not a plain .txt file name.
+var ErrBadQuizName = errors.New("bad quiz file name")
 
 // FormatError reports a parse problem at a 1-based line number.
 type FormatError struct {
@@ -169,4 +174,38 @@ func imageExists(dir, name string) bool {
 		}
 	}
 	return false
+}
+
+// quizPath resolves a quiz file name against dir. Only plain .txt names are
+// accepted, so admin messages cannot escape the quizzes folder.
+func quizPath(dir, name string) (string, error) {
+	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
+		return "", ErrBadQuizName
+	}
+	if !strings.EqualFold(filepath.Ext(name), ".txt") {
+		return "", ErrBadQuizName
+	}
+	return filepath.Join(dir, name), nil
+}
+
+// listQuizzes returns sorted .txt file names in dir. Missing dir = empty list.
+func listQuizzes(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	names := []string{}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(e.Name()), ".txt") {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	return names, nil
 }

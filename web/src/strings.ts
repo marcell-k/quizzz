@@ -22,6 +22,22 @@ export const t = {
   youBuzzed: "Jelentkeztél",
   waiting: "Várj a kérdésre",
   noTeams: "Nincs beállított csapat.",
+  board: "Tábla",
+  quizFile: "Feladatsor",
+  loadQuiz: "Betöltés",
+  noQuiz: "Nincs betöltött feladatsor.",
+  noQuizFiles: "Nincs .txt a quizzes mappában.",
+  noCurrent: "Nincs kiválasztott kérdés.",
+  currentQuestion: "Aktuális kérdés",
+  noAnswer: "Nincs válasz",
+  peek: "Mutasd",
+  hide: "Elrejtés",
+  image: "Kép",
+  score: "Pontszám",
+  teams: "Csapatok",
+  buzzerLocked: "zárva",
+  buzzerOpen: "nyitva",
+  buzzerBuzzed: "jelentkezés",
 } as const;
 
 const errors: Record<string, string> = {
@@ -32,6 +48,15 @@ const errors: Record<string, string> = {
   already_joined: "Már csatlakoztál.",
   forbidden: "Nem engedélyezett.",
   bad_message: "Hibás üzenet.",
+  bad_cell: "Hibás mező.",
+  busy: "Előbb zárd le az aktuális kérdést.",
+  no_question: "Nincs aktív kérdés.",
+  no_quiz: "Nincs betöltött feladatsor.",
+  bad_file: "Hibás fájlnév.",
+  not_utf8: "A fájl nem UTF-8. Előbb konvertáld.",
+  quiz_format: "Hibás feladatsor.",
+  load_failed: "A feladatsor betöltése nem sikerült.",
+  no_buzz: "Nincs jelentkezés.",
 };
 
 export function errorText(code: string): string {

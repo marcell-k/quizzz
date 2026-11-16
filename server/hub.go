@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -25,6 +26,9 @@ type inMsg struct {
 	Team  int    `json:"team"`
 	Name  string `json:"name"`
 	Token string `json:"token"`
+	Topic int    `json:"topic"`
+	Q     int    `json:"q"`
+	File  string `json:"file"`
 }
 
 type statePlayer struct {
@@ -34,12 +38,30 @@ type statePlayer struct {
 	Online bool   `json:"online"`
 }
 
+type stateTeam struct {
+	Name  string `json:"name"`
+	Score int    `json:"score"`
+}
+
+type stateCurrent struct {
+	Topic    int    `json:"topic"`
+	Q        int    `json:"q"`
+	Points   int    `json:"points"`
+	Text     string `json:"text"`
+	HasImage bool   `json:"hasImage"`
+}
+
 type stateMsg struct {
 	Type     string        `json:"type"`
-	Teams    []string      `json:"teams"`
+	Teams    []stateTeam   `json:"teams"`
 	Players  []statePlayer `json:"players"`
 	Buzzer   string        `json:"buzzer"`
 	BuzzedBy int           `json:"buzzedBy"`
+	Round    string        `json:"round"`
+	Topics   []string      `json:"topics"`
+	Points   []int         `json:"points"`
+	Used     [][]bool      `json:"used"`
+	Current  *stateCurrent `json:"current"`
 }
 
 type joinedMsg struct {
@@ -93,13 +115,15 @@ type Hub struct {
 	events  chan event
 	game    *Game
 	clients map[*client]struct{}
+	quizDir string
 }
 
-func NewHub(g *Game) *Hub {
+func NewHub(g *Game, quizDir string) *Hub {
 	return &Hub{
 		events:  make(chan event, 64),
 		game:    g,
 		clients: make(map[*client]struct{}),
+		quizDir: quizDir,
 	}
 }
 
@@ -156,12 +180,47 @@ func (h *Hub) stateJSON() []byte {
 	for _, p := range g.Players {
 		ps = append(ps, statePlayer{ID: p.ID, Team: p.Team, Name: p.Name, Online: p.Online})
 	}
+	ts := make([]stateTeam, len(g.Teams))
+	for i, t := range g.Teams {
+		ts[i] = stateTeam{Name: t.Name, Score: t.Score}
+	}
+
+	topics := []string{}
+	used := [][]bool{}
+	points := g.Points
+	if points == nil {
+		points = []int{}
+	}
+	if g.Quiz != nil {
+		topics = g.Quiz.Topics
+	}
+	if g.Board != nil {
+		used = g.Board
+	}
+
+	var current *stateCurrent
+	if g.Current != nil {
+		text, hasImage := g.CurrentQuestion()
+		current = &stateCurrent{
+			Topic:    g.Current.Topic,
+			Q:        g.Current.Q,
+			Points:   g.Current.Points,
+			Text:     text,
+			HasImage: hasImage,
+		}
+	}
+
 	return mustJSON(stateMsg{
 		Type:     "state",
-		Teams:    g.Teams,
+		Teams:    ts,
 		Players:  ps,
 		Buzzer:   g.Buzzer.String(),
 		BuzzedBy: g.BuzzedBy,
+		Round:    g.Round.String(),
+		Topics:   topics,
+		Points:   points,
+		Used:     used,
+		Current:  current,
 	})
 }
 
@@ -184,7 +243,7 @@ func joinErrCode(err error) string {
 
 func (h *Hub) teamName(i int) string {
 	if i >= 0 && i < len(h.game.Teams) {
-		return h.game.Teams[i]
+		return h.game.Teams[i].Name
 	}
 	return "?"
 }
@@ -216,10 +275,115 @@ func (h *Hub) handle(c *client, data []byte) {
 		if h.game.CancelBuzz() {
 			log.Printf("buzz cancelled")
 			h.broadcastState()
+		} else {
+			h.sendError(c, "no_buzz")
 		}
+	case "select":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		h.onSelect(c, m)
+	case "plus":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		h.onScore(c, m.Team, 1)
+	case "minus":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		h.onScore(c, m.Team, -1)
+	case "none":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		if h.game.None() {
+			log.Printf("no answer")
+			h.broadcastState()
+		} else {
+			h.sendError(c, "no_question")
+		}
+	case "load_quiz":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		h.onLoadQuiz(c, m.File)
 	default:
 		h.sendError(c, "bad_message")
 	}
+}
+
+func (h *Hub) onSelect(c *client, m inMsg) {
+	if h.game.Quiz == nil {
+		h.sendError(c, "no_quiz")
+		return
+	}
+	if h.game.Current != nil {
+		h.sendError(c, "busy")
+		return
+	}
+	if !h.game.Select(m.Topic, m.Q) {
+		h.sendError(c, "bad_cell")
+		return
+	}
+	log.Printf("cell selected: topic=%d q=%d points=%d", m.Topic+1, m.Q+1, h.game.Current.Points)
+	h.broadcastState()
+}
+
+func (h *Hub) onScore(c *client, team, sign int) {
+	if h.game.Current == nil {
+		h.sendError(c, "no_question")
+		return
+	}
+	points := h.game.Current.Points
+	var ok bool
+	if sign > 0 {
+		ok = h.game.Plus(team)
+	} else {
+		ok = h.game.Minus(team)
+	}
+	if !ok {
+		h.sendError(c, "bad_team")
+		return
+	}
+	log.Printf("score %+d: %s -> %d", sign*points, h.teamName(team), h.game.Teams[team].Score)
+	h.broadcastState()
+}
+
+func (h *Hub) onLoadQuiz(c *client, file string) {
+	path, err := quizPath(h.quizDir, file)
+	if err != nil {
+		h.sendError(c, "bad_file")
+		return
+	}
+	q, warnings, err := LoadQuiz(path, defaultTopics, defaultQuestions)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrNotUTF8):
+			h.sendError(c, "not_utf8")
+		default:
+			var fe *FormatError
+			if errors.As(err, &fe) {
+				log.Printf("quiz %s: %v", file, err)
+				h.sendError(c, "quiz_format")
+			} else {
+				log.Printf("quiz %s: %v", file, err)
+				h.sendError(c, "load_failed")
+			}
+		}
+		return
+	}
+	for _, w := range warnings {
+		log.Printf("quiz %s: %s", file, w)
+	}
+	h.game.SetQuiz(q)
+	log.Printf("quiz loaded: %s (%d topics)", file, len(q.Topics))
+	h.broadcastState()
 }
 
 func (h *Hub) onJoin(c *client, m inMsg) {

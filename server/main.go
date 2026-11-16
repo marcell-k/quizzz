@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
@@ -8,7 +9,26 @@ import (
 	"net/http"
 )
 
-const firstPort = 8080
+const (
+	firstPort = 8080
+	quizDir   = "quizzes"
+)
+
+// quizzesHandler lists selectable .txt files for the admin picker.
+func quizzesHandler(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		names, err := listQuizzes(dir)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		if err := json.NewEncoder(w).Encode(names); err != nil {
+			log.Printf("list quizzes: %v", err)
+		}
+	}
+}
 
 // listen tries firstPort..firstPort+19, returns first free.
 func listen() (net.Listener, int, error) {
@@ -47,7 +67,7 @@ func main() {
 	}
 
 	game := NewGame([]string{"A csapat", "B csapat", "C csapat", "D csapat", "E csapat"}, newToken)
-	hub := NewHub(game)
+	hub := NewHub(game, quizDir)
 	go hub.Run()
 
 	mux := http.NewServeMux()
@@ -57,6 +77,7 @@ func main() {
 	mux.HandleFunc("GET /help", page("help.html"))
 	mux.HandleFunc("GET /ws", hub.playerHandler)
 	mux.HandleFunc("GET /ws/admin", loopbackOnly(hub.adminHandler))
+	mux.HandleFunc("GET /api/quizzes", loopbackOnly(quizzesHandler(quizDir)))
 	mux.HandleFunc("GET /qr.png", loopbackOnly(qrHandler(port)))
 	mux.HandleFunc("GET /info", loopbackOnly(infoHandler(port)))
 	mux.Handle("GET /", http.FileServerFS(dist))
