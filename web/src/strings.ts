@@ -16,6 +16,12 @@ export const t = {
   online: "online",
   offline: "offline",
   cancelBuzz: "Jelentkezés törlése",
+  pickTeam: "Válassz csapatot",
+  yourTeam: "Csapatod",
+  back: "Vissza",
+  youBuzzed: "Jelentkeztél",
+  waiting: "Várj a kérdésre",
+  noTeams: "Nincs beállított csapat.",
 } as const;
 
 const errors: Record<string, string> = {
