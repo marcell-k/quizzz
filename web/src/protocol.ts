@@ -40,6 +40,7 @@ export interface CurrentInfo {
   points: number;
   text: string;
   hasImage: boolean;
+  image: string;
 }
 
 export type StateMsg = {

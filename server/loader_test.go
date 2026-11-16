@@ -195,10 +195,14 @@ func TestLoadQuizImages(t *testing.T) {
 		t.Fatalf("LoadQuiz: %v", err)
 	}
 	want := [][]bool{{true, false}, {true, true}}
+	wantFiles := [][]string{{"quiz_11.jpg", ""}, {"quiz_21.jpeg", "quiz_22.png"}}
 	for i := range want {
 		for k := range want[i] {
 			if q.HasImage[i][k] != want[i][k] {
 				t.Errorf("HasImage[%d][%d] = %v, want %v", i, k, q.HasImage[i][k], want[i][k])
+			}
+			if q.Images[i][k] != wantFiles[i][k] {
+				t.Errorf("Images[%d][%d] = %q, want %q", i, k, q.Images[i][k], wantFiles[i][k])
 			}
 		}
 	}

@@ -7,12 +7,33 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
+	"strings"
 )
 
 const (
 	firstPort = 8080
 	quizDir   = "quizzes"
 )
+
+// mediaHandler serves quiz images by plain file name. Only image extensions
+// are allowed, so question .txt files never leave the admin machine.
+func mediaHandler(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if name == "" || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
+			http.NotFound(w, r)
+			return
+		}
+		switch strings.ToLower(filepath.Ext(name)) {
+		case ".jpg", ".jpeg", ".png":
+		default:
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(dir, name))
+	}
+}
 
 // quizzesHandler lists selectable .txt files for the admin picker.
 func quizzesHandler(dir string) http.HandlerFunc {
@@ -80,6 +101,7 @@ func main() {
 	mux.HandleFunc("GET /api/quizzes", loopbackOnly(quizzesHandler(quizDir)))
 	mux.HandleFunc("GET /qr.png", loopbackOnly(qrHandler(port)))
 	mux.HandleFunc("GET /info", loopbackOnly(infoHandler(port)))
+	mux.HandleFunc("GET /media/quizzes/{name}", mediaHandler(quizDir))
 	mux.Handle("GET /", http.FileServerFS(dist))
 
 	log.Printf("local:  http://localhost:%d/admin", port)

@@ -38,6 +38,10 @@ export const t = {
   buzzerLocked: "zárva",
   buzzerOpen: "nyitva",
   buzzerBuzzed: "jelentkezés",
+  points: "pont",
+  buzzOpen: "Lehet jelentkezni",
+  lightningTitle: "Villámkérdések",
+  gameEnded: "Játék vége",
 } as const;
 
 const errors: Record<string, string> = {

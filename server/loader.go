@@ -28,12 +28,13 @@ func (e *FormatError) Error() string {
 }
 
 // Quiz is a parsed legacy question file.
-// Questions and HasImage are indexed [topic][question].
+// Questions, HasImage and Images are indexed [topic][question].
 type Quiz struct {
 	File           string // base name without extension, used for image lookup
 	Topics         []string
 	Questions      [][]string
 	HasImage       [][]bool
+	Images         [][]string // file name with extension, empty = no image
 	LightningImage bool
 }
 
@@ -150,30 +151,34 @@ func quizBase(path string) string {
 	return strings.TrimSuffix(name, filepath.Ext(name))
 }
 
-// findImages sets HasImage and LightningImage from files next to the quiz:
-// <base>_<topic><question>.<ext> and <base>_lightning.<ext>. Topic and
+// findImages sets HasImage, Images and LightningImage from files next to the
+// quiz: <base>_<topic><question>.<ext> and <base>_lightning.<ext>. Topic and
 // question numbers are 1-based, max 9, so one digit each (plan D19).
 func (q *Quiz) findImages(path string, questions int) {
 	dir := filepath.Dir(path)
 	q.HasImage = make([][]bool, len(q.Topics))
+	q.Images = make([][]string, len(q.Topics))
 	for t := range q.Topics {
 		q.HasImage[t] = make([]bool, questions)
+		q.Images[t] = make([]string, questions)
 		for k := 0; k < questions; k++ {
 			name := fmt.Sprintf("%s_%d%d", q.File, t+1, k+1)
-			q.HasImage[t][k] = imageExists(dir, name)
+			q.Images[t][k] = findImage(dir, name)
+			q.HasImage[t][k] = q.Images[t][k] != ""
 		}
 	}
-	q.LightningImage = imageExists(dir, q.File+"_lightning")
+	q.LightningImage = findImage(dir, q.File+"_lightning") != ""
 }
 
-func imageExists(dir, name string) bool {
+// findImage returns the file name with its extension, or "" when missing.
+func findImage(dir, name string) string {
 	for _, ext := range imageExts {
 		info, err := os.Stat(filepath.Join(dir, name+ext))
 		if err == nil && info.Mode().IsRegular() {
-			return true
+			return name + ext
 		}
 	}
-	return false
+	return ""
 }
 
 // quizPath resolves a quiz file name against dir. Only plain .txt names are

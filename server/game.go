@@ -282,6 +282,18 @@ func (g *Game) validTeam(team int) bool {
 	return team >= 0 && team < len(g.Teams) && g.Teams[team].Name != ""
 }
 
+// CurrentImage returns the image file name of the open question, or "".
+func (g *Game) CurrentImage() string {
+	if g.Current == nil || g.Quiz == nil {
+		return ""
+	}
+	t, q := g.Current.Topic, g.Current.Q
+	if t < len(g.Quiz.Images) && q < len(g.Quiz.Images[t]) {
+		return g.Quiz.Images[t][q]
+	}
+	return ""
+}
+
 // CurrentQuestion returns the text and image flag of the open question.
 func (g *Game) CurrentQuestion() (text string, hasImage bool) {
 	if g.Current == nil || g.Quiz == nil {

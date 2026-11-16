@@ -358,16 +358,23 @@ func TestCurrentQuestion(t *testing.T) {
 	g := testGame()
 	q := testQuiz(t)
 	q.HasImage[1][2] = true
+	q.Images[1][2] = "quiz_23.jpg"
 	g.SetQuiz(q)
 	g.Select(1, 2)
 	text, has := g.CurrentQuestion()
 	if text != "Kérdés23" || !has {
 		t.Fatalf("text = %q, hasImage = %v", text, has)
 	}
+	if image := g.CurrentImage(); image != "quiz_23.jpg" {
+		t.Fatalf("image = %q", image)
+	}
 	g.None()
 	text, has = g.CurrentQuestion()
 	if text != "" || has {
 		t.Fatal("cleared question still returns text")
+	}
+	if image := g.CurrentImage(); image != "" {
+		t.Fatalf("cleared question still returns image %q", image)
 	}
 }
 

@@ -49,6 +49,7 @@ type stateCurrent struct {
 	Points   int    `json:"points"`
 	Text     string `json:"text"`
 	HasImage bool   `json:"hasImage"`
+	Image    string `json:"image"`
 }
 
 type stateMsg struct {
@@ -201,12 +202,17 @@ func (h *Hub) stateJSON() []byte {
 	var current *stateCurrent
 	if g.Current != nil {
 		text, hasImage := g.CurrentQuestion()
+		image := ""
+		if name := g.CurrentImage(); name != "" {
+			image = "/media/quizzes/" + name
+		}
 		current = &stateCurrent{
 			Topic:    g.Current.Topic,
 			Q:        g.Current.Q,
 			Points:   g.Current.Points,
 			Text:     text,
 			HasImage: hasImage,
+			Image:    image,
 		}
 	}
 
