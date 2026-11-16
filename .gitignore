@@ -1,0 +1,11 @@
+node_modules/
+server/web/dist/*
+!server/web/dist/.gitkeep
+quiz
+quiz.exe
+quiz.lock
+autosave.json
+history.csv
+.DS_Store
+
+old/
