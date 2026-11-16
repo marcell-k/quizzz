@@ -1,0 +1,172 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"unicode/utf8"
+)
+
+// ErrNotUTF8 is plan D12: no silent encoding guessing, bad bytes are an error.
+var ErrNotUTF8 = errors.New("File not UTF-8. Convert first.")
+
+// FormatError reports a parse problem at a 1-based line number.
+type FormatError struct {
+	Line int
+	Msg  string
+}
+
+func (e *FormatError) Error() string {
+	return fmt.Sprintf("line %d: %s", e.Line, e.Msg)
+}
+
+// Quiz is a parsed legacy question file.
+// Questions and HasImage are indexed [topic][question].
+type Quiz struct {
+	File           string // base name without extension, used for image lookup
+	Topics         []string
+	Questions      [][]string
+	HasImage       [][]bool
+	LightningImage bool
+}
+
+const (
+	minBoardSize = 1
+	maxBoardSize = 9
+)
+
+var imageExts = []string{".jpg", ".jpeg", ".png"}
+
+// LoadQuiz reads a legacy .txt quiz file. Board size comes from settings (plan D19).
+// It returns warnings for ignored extra lines and a *FormatError for broken structure.
+func LoadQuiz(path string, topics, questions int) (*Quiz, []string, error) {
+	if topics < minBoardSize || topics > maxBoardSize ||
+		questions < minBoardSize || questions > maxBoardSize {
+		return nil, nil, fmt.Errorf("board size must be %d-%d, got %dx%d",
+			minBoardSize, maxBoardSize, topics, questions)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !utf8.Valid(raw) {
+		return nil, nil, ErrNotUTF8
+	}
+
+	lines := splitLines(string(raw))
+	if len(lines) == 0 {
+		return nil, nil, &FormatError{Line: 1, Msg: "empty file"}
+	}
+
+	q := &Quiz{File: quizBase(path)}
+	var warnings []string
+	i := 0
+
+	// Leading blank lines are not part of any block.
+	for i < len(lines) && lines[i] == "" {
+		warnings = append(warnings, fmt.Sprintf("line %d: blank line ignored", i+1))
+		i++
+	}
+
+	for t := 0; t < topics; t++ {
+		if i >= len(lines) {
+			return nil, warnings, &FormatError{
+				Line: len(lines) + 1,
+				Msg:  fmt.Sprintf("missing topic line %d", t+1),
+			}
+		}
+		topic := lines[i]
+		i++
+
+		qs := make([]string, 0, questions)
+		for k := 0; k < questions; k++ {
+			if i >= len(lines) {
+				return nil, warnings, &FormatError{
+					Line: len(lines) + 1,
+					Msg:  fmt.Sprintf("missing question %d for topic %q", k+1, topic),
+				}
+			}
+			if lines[i] == "" {
+				return nil, warnings, &FormatError{
+					Line: i + 1,
+					Msg:  fmt.Sprintf("missing question %d for topic %q", k+1, topic),
+				}
+			}
+			qs = append(qs, lines[i])
+			i++
+		}
+
+		// Extra non-blank lines before the blank separator: keep the first N
+		// questions, warn about the rest (plan: extra lines ignored).
+		for i < len(lines) && lines[i] != "" {
+			warnings = append(warnings, fmt.Sprintf("line %d: extra line ignored", i+1))
+			i++
+		}
+		// Blank separator, plus any extra blank lines.
+		for i < len(lines) && lines[i] == "" {
+			i++
+		}
+
+		q.Topics = append(q.Topics, topic)
+		q.Questions = append(q.Questions, qs)
+	}
+
+	for ; i < len(lines); i++ {
+		if lines[i] != "" {
+			warnings = append(warnings, fmt.Sprintf("line %d: extra line ignored", i+1))
+		}
+	}
+
+	q.findImages(path, questions)
+	return q, warnings, nil
+}
+
+// splitLines normalizes CRLF/CR to LF, strips a UTF-8 BOM and trailing
+// spaces/tabs, then splits. Empty input yields no lines.
+func splitLines(s string) []string {
+	s = strings.TrimPrefix(s, "\ufeff")
+	if s == "" {
+		return nil
+	}
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " \t")
+	}
+	return lines
+}
+
+func quizBase(path string) string {
+	name := filepath.Base(path)
+	return strings.TrimSuffix(name, filepath.Ext(name))
+}
+
+// findImages sets HasImage and LightningImage from files next to the quiz:
+// <base>_<topic><question>.<ext> and <base>_lightning.<ext>. Topic and
+// question numbers are 1-based, max 9, so one digit each (plan D19).
+func (q *Quiz) findImages(path string, questions int) {
+	dir := filepath.Dir(path)
+	q.HasImage = make([][]bool, len(q.Topics))
+	for t := range q.Topics {
+		q.HasImage[t] = make([]bool, questions)
+		for k := 0; k < questions; k++ {
+			name := fmt.Sprintf("%s_%d%d", q.File, t+1, k+1)
+			q.HasImage[t][k] = imageExists(dir, name)
+		}
+	}
+	q.LightningImage = imageExists(dir, q.File+"_lightning")
+}
+
+func imageExists(dir, name string) bool {
+	for _, ext := range imageExts {
+		info, err := os.Stat(filepath.Join(dir, name+ext))
+		if err == nil && info.Mode().IsRegular() {
+			return true
+		}
+	}
+	return false
+}
