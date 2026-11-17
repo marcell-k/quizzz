@@ -1,8 +1,16 @@
 import { t, errorText } from "./strings";
 import { connect } from "./ws";
 import { teamColor } from "./colors";
+import { logo } from "./logo";
 import { formatClock, remainingSeconds, startTick } from "./timer";
-import type { BuzzerState, Round, ServerMsg, StateMsg, TimerInfo } from "./protocol";
+import type {
+  BuzzerState,
+  Round,
+  ServerMsg,
+  Settings,
+  StateMsg,
+  TimerInfo,
+} from "./protocol";
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -13,6 +21,29 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (cls) e.className = cls;
   if (text !== undefined) e.textContent = text;
   return e;
+}
+
+function numInput(min: number, max: number): HTMLInputElement {
+  const i = el("input");
+  i.type = "number";
+  i.min = String(min);
+  i.max = String(max);
+  i.inputMode = "numeric";
+  return i;
+}
+
+function field(label: string, control: HTMLElement): HTMLLabelElement {
+  const l = el("label", "field");
+  l.append(el("span", "", label), control);
+  return l;
+}
+
+function checkRow(label: string): { input: HTMLInputElement; row: HTMLLabelElement } {
+  const input = el("input");
+  input.type = "checkbox";
+  const row = el("label", "check");
+  row.append(input, el("span", "", label));
+  return { input, row };
 }
 
 function panel(title: string, ...children: (Node | string)[]): HTMLElement {
@@ -55,11 +86,13 @@ const board = el("div", "board");
 const qBox = el("div", "qbox");
 const noneBtn = el("button", "btn", t.noAnswer);
 const cancelBtn = el("button", "btn", t.cancelBuzz);
+const openBtn = el("button", "btn", t.openBuzz);
 const opMsg = el("p", "err");
 noneBtn.disabled = true;
 cancelBtn.disabled = true;
+openBtn.disabled = true;
 const actions = el("div", "actions");
-actions.append(noneBtn, cancelBtn);
+actions.append(noneBtn, cancelBtn, openBtn);
 
 const teamList = el("div", "team-list-admin");
 const undoBtn = el("button", "btn undo-btn", t.undo);
@@ -75,6 +108,75 @@ const timerClock = el("p", "timer-clock", "00:00");
 const timerBtn = el("button", "btn timer-btn", t.pauseTimer);
 timerBtn.disabled = true;
 
+// ---- settings panel ----
+
+const setTitle = el("input");
+setTitle.type = "text";
+setTitle.maxLength = 80;
+setTitle.autocomplete = "off";
+
+const teamInputs = Array.from({ length: 5 }, () => {
+  const i = el("input");
+  i.type = "text";
+  i.maxLength = 30;
+  i.autocomplete = "off";
+  return i;
+});
+
+const gameMin = numInput(1, 600);
+const lightMin = numInput(0, 600);
+const lightningPts = numInput(1, 10000000);
+
+function sizeSelect(): HTMLSelectElement {
+  const s = el("select");
+  for (let n = 1; n <= 9; n++) {
+    const o = el("option", "", String(n));
+    o.value = String(n);
+    s.appendChild(o);
+  }
+  return s;
+}
+
+const topicsSel = sizeSelect();
+const questionsSel = sizeSelect();
+
+const pointsRow = el("div", "points-row");
+const pointInputs: HTMLInputElement[] = [];
+
+const ruleReopen = checkRow(t.ruleReopenOnWrong);
+const ruleLockout = checkRow(t.ruleLockoutTeam);
+const ruleSubtract = checkRow(t.ruleSubtractPoints);
+const ruleAuto = checkRow(t.ruleAutoOpen);
+
+const namesRow = el("div", "team-names");
+namesRow.append(...teamInputs.map((input, i) => field(`${t.team} ${i + 1}`, input)));
+
+const checks = el("div", "checks");
+checks.append(ruleReopen.row, ruleLockout.row, ruleSubtract.row, ruleAuto.row);
+
+const settingsGrid = el("div", "settings-grid");
+settingsGrid.append(
+  field(t.title, setTitle),
+  field(t.gameMinutes, gameMin),
+  field(t.lightningMinutes, lightMin),
+  field(t.topics, topicsSel),
+  field(t.questionsPerTopic, questionsSel),
+  field(t.lightningPoints, lightningPts),
+);
+
+const settingsPanel = panel(t.settings);
+settingsPanel.classList.add("wide");
+settingsPanel.append(
+  settingsGrid,
+  el("h3", "", t.teamNames),
+  namesRow,
+  el("h3", "", t.questionPoints),
+  pointsRow,
+  el("h3", "", t.rules),
+  checks,
+  el("p", "hint", t.boardSizeHint),
+);
+
 const startLightningBtn = el("button", "btn", t.startLightning);
 const endGameBtn = el("button", "btn", t.endGame);
 startLightningBtn.disabled = true;
@@ -87,10 +189,19 @@ questionPanel.classList.add("wide");
 const teamsPanel = panel(t.teams, teamList, undoBtn);
 teamsPanel.classList.add("wide");
 
+const resumeText = el("p", "status");
+const resumeContinueBtn = el("button", "btn", t.resumeContinue);
+const resumeNewBtn = el("button", "btn", t.resumeNew);
+const resumeActions = el("div", "actions");
+resumeActions.append(resumeContinueBtn, resumeNewBtn);
+const resumePanel = el("section", "panel resume-panel hidden");
+resumePanel.append(resumeText, resumeActions);
+
 const grid = el("div", "admin");
 grid.append(
   panel(t.scanToJoin, qr, url, status, connEl),
   panel(t.quizFile, quizSel, loadBtn, quizMsg),
+  settingsPanel,
   panel(t.gameTime, timerClock, timerBtn),
   panel(t.gameFlow, startLightningBtn, endGameBtn),
   boardPanel,
@@ -99,7 +210,9 @@ grid.append(
   teamsPanel,
   panel(t.players, playerList),
 );
-document.body.replaceChildren(h1, grid);
+const head = el("div", "admin-head");
+head.append(logo(), h1);
+document.body.replaceChildren(head, resumePanel, grid);
 
 // ---- state ----
 
@@ -109,6 +222,107 @@ let timerState: TimerInfo | null = null;
 let currentRound: Round = "board";
 let lastState: StateMsg | null = null;
 let lightningPrompted = false;
+let quizPicked = false;
+
+function validInt(v: number, min: number, max: number): boolean {
+  return Number.isInteger(v) && v >= min && v <= max;
+}
+
+function renderPoints(points: number[]): void {
+  const ae = document.activeElement;
+  if (ae instanceof HTMLInputElement && ae.type === "number" && pointsRow.contains(ae)) return;
+  if (pointInputs.length === points.length) {
+    points.forEach((p, i) => {
+      const input = pointInputs[i];
+      if (input) input.value = String(p);
+    });
+    return;
+  }
+  pointInputs.length = 0;
+  pointsRow.replaceChildren(
+    ...points.map((p, i) => {
+      const input = numInput(1, 10000000);
+      input.value = String(p);
+      pointInputs.push(input);
+      return field(`#${i + 1}`, input);
+    }),
+  );
+}
+
+function renderSettings(s: Settings): void {
+  const ae = document.activeElement;
+  if (
+    ae instanceof HTMLInputElement &&
+    (ae.type === "text" || ae.type === "number") &&
+    settingsPanel.contains(ae)
+  ) {
+    return;
+  }
+  setTitle.value = s.title;
+  s.teams.forEach((name, i) => {
+    const input = teamInputs[i];
+    if (input) input.value = name;
+  });
+  gameMin.value = String(s.gameMinutes);
+  lightMin.value = String(s.lightningMinutes);
+  lightningPts.value = String(s.lightningPoints);
+  topicsSel.value = String(s.topics);
+  questionsSel.value = String(s.questions);
+  ruleReopen.input.checked = s.rules.reopenOnWrong;
+  ruleLockout.input.checked = s.rules.lockoutTeam;
+  ruleLockout.input.disabled = !s.rules.reopenOnWrong;
+  ruleSubtract.input.checked = s.rules.subtractPoints;
+  ruleAuto.input.checked = s.rules.autoOpen;
+  renderPoints(s.points);
+  h1.textContent = `${s.title}: ${t.admin}`;
+}
+
+function readSettings(): Settings | null {
+  if (!lastState) return null;
+  const topics = Number(topicsSel.value);
+  const questions = Number(questionsSel.value);
+  const gameMinutes = Number(gameMin.value);
+  const lightningMinutes = Number(lightMin.value);
+  const lightningPoints = Number(lightningPts.value);
+  const points = pointInputs.map((input) => Number(input.value));
+  if (
+    !validInt(topics, 1, 9) ||
+    !validInt(questions, 1, 9) ||
+    !validInt(gameMinutes, 1, 600) ||
+    !validInt(lightningMinutes, 0, 600) ||
+    !validInt(lightningPoints, 1, 10000000) ||
+    points.length !== questions ||
+    points.some((p) => !validInt(p, 1, 10000000))
+  ) {
+    return null;
+  }
+  return {
+    title: setTitle.value.trim(),
+    teams: teamInputs.map((input) => input.value.trim()),
+    topics,
+    questions,
+    points,
+    lightningPoints,
+    gameMinutes,
+    lightningMinutes,
+    rules: {
+      reopenOnWrong: ruleReopen.input.checked,
+      lockoutTeam: ruleLockout.input.checked,
+      subtractPoints: ruleSubtract.input.checked,
+      autoOpen: ruleAuto.input.checked,
+    },
+    lastQuiz: lastState.settings.lastQuiz,
+  };
+}
+
+function applyLastQuiz(file: string): void {
+  if (quizPicked || file === "" || quizSel.disabled) return;
+  const opt = Array.from(quizSel.options).find((o) => o.value === file);
+  if (opt) {
+    quizSel.value = file;
+    quizPicked = true;
+  }
+}
 
 function boardFull(m: StateMsg): boolean {
   return m.used.length > 0 && m.used.every((row) => row.length > 0 && row.every(Boolean));
@@ -275,15 +489,38 @@ function renderPlayers(m: StateMsg): void {
   playerList.replaceChildren(
     ...m.players.map((p) => {
       const li = el("li");
-      li.textContent = `${m.teams[p.team]?.name ?? "?"}: ${p.name} (${p.online ? t.online : t.offline})`;
+      const out = m.lockedPlayers.includes(p.id) || m.lockedTeams[p.team] === true;
+      const status = p.online ? t.online : t.offline;
+      li.textContent = `${m.teams[p.team]?.name ?? "?"}: ${p.name} (${status}${out ? `, ${t.out}` : ""})`;
       return li;
     }),
   );
 }
 
+function resumePrompt(warning: string): string {
+  switch (warning) {
+    case "resume_quiz_missing":
+      return t.resumeQuizMissing;
+    case "resume_broken":
+      return t.resumeBroken;
+    default:
+      return warning;
+  }
+}
+
+function renderResume(m: StateMsg): void {
+  const warning = m.resumeWarning;
+  resumePanel.classList.toggle("hidden", !m.resumeAvailable && warning === "");
+  resumeText.textContent = warning !== "" ? resumePrompt(warning) : t.resumeTitle;
+  resumeActions.classList.toggle("hidden", !m.resumeAvailable);
+  resumeContinueBtn.disabled = false;
+  resumeNewBtn.disabled = false;
+}
+
 function render(m: StateMsg): void {
   currentRound = m.round;
   timerState = m.timer;
+  renderResume(m);
   renderTimer();
   const label = buzzerLabels[m.buzzer];
   const by = m.players.find((p) => p.id === m.buzzedBy);
@@ -292,12 +529,15 @@ function render(m: StateMsg): void {
     : `${t.buzzer}: ${label}`;
   noneBtn.disabled = m.current === null;
   cancelBtn.disabled = m.buzzer !== "buzzed";
+  openBtn.disabled = !(m.round === "board" && m.current !== null && m.buzzer === "locked");
   startLightningBtn.disabled = m.round !== "board";
   endGameBtn.disabled = m.round === "ended";
   undoBtn.disabled = m.undoCount === 0;
-  undoBtn.textContent = m.undoCount > 0 ? `${t.undo} (${m.undoCount})` : t.undo;
+  undoBtn.textContent = t.undo;
   resultsPanel.classList.toggle("hidden", m.round !== "ended");
   newGameBtn.disabled = m.round !== "ended";
+  renderSettings(m.settings);
+  applyLastQuiz(m.settings.lastQuiz);
   renderBoard(m);
   renderQuestion(m);
   renderResults(m);
@@ -378,9 +618,38 @@ const conn = connect(
   },
 );
 
+settingsPanel.addEventListener("change", () => {
+  ruleLockout.input.disabled = !ruleReopen.input.checked;
+  const settings = readSettings();
+  if (!settings) {
+    if (lastState) renderSettings(lastState.settings);
+    opMsg.textContent = errorText("bad_settings");
+    return;
+  }
+  opMsg.textContent = "";
+  conn.send({ type: "setup", settings });
+});
+
+resumeContinueBtn.onclick = () => {
+  resumeContinueBtn.disabled = true;
+  resumeNewBtn.disabled = true;
+  conn.send({ type: "resume" });
+};
+
+resumeNewBtn.onclick = () => {
+  resumeContinueBtn.disabled = true;
+  resumeNewBtn.disabled = true;
+  conn.send({ type: "new_game" });
+};
+
+quizSel.addEventListener("change", () => {
+  quizPicked = true;
+});
+
 loadBtn.onclick = () => {
   const file = quizSel.value;
   if (!file) return;
+  quizPicked = true;
   quizMsg.textContent = "";
   opMsg.textContent = "";
   loadPending = true;
@@ -395,6 +664,11 @@ noneBtn.onclick = () => {
 cancelBtn.onclick = () => {
   opMsg.textContent = "";
   conn.send({ type: "cancel_buzz" });
+};
+
+openBtn.onclick = () => {
+  opMsg.textContent = "";
+  conn.send({ type: "open_buzz" });
 };
 
 timerBtn.onclick = () => {

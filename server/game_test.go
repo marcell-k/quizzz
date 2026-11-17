@@ -9,7 +9,9 @@ import (
 
 func testGame() *Game {
 	n := 0
-	return NewGame([]string{"A", "B", "C", "", ""}, func() string {
+	st := DefaultSettings()
+	st.Teams = []string{"A", "B", "C", "", ""}
+	return NewGame(st, func() string {
 		n++
 		return fmt.Sprintf("tok%d", n)
 	})

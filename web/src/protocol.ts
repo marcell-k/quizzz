@@ -15,6 +15,30 @@ export type TimerMsg = { type: "timer"; action: "pause" | "resume" };
 export type StartLightningMsg = { type: "start_lightning" };
 export type EndGameMsg = { type: "end_game" };
 
+export interface Rules {
+  reopenOnWrong: boolean;
+  lockoutTeam: boolean;
+  subtractPoints: boolean;
+  autoOpen: boolean;
+}
+
+export interface Settings {
+  title: string;
+  teams: string[];
+  topics: number;
+  questions: number;
+  points: number[];
+  lightningPoints: number;
+  gameMinutes: number;
+  lightningMinutes: number;
+  rules: Rules;
+  lastQuiz: string;
+}
+
+export type SetupMsg = { type: "setup"; settings: Settings };
+export type OpenBuzzMsg = { type: "open_buzz" };
+export type ResumeMsg = { type: "resume" };
+
 export type ClientMsg =
   | JoinMsg
   | BuzzMsg
@@ -29,7 +53,10 @@ export type ClientMsg =
   | LoadQuizMsg
   | TimerMsg
   | StartLightningMsg
-  | EndGameMsg;
+  | EndGameMsg
+  | SetupMsg
+  | OpenBuzzMsg
+  | ResumeMsg;
 
 export type BuzzerState = "locked" | "open" | "buzzed";
 export type Round = "setup" | "board" | "lightning" | "ended";
@@ -84,6 +111,11 @@ export type StateMsg = {
   results: ResultInfo[] | null;
   lightningPoints: number;
   lightningImage: string;
+  lockedPlayers: number[];
+  lockedTeams: boolean[];
+  resumeAvailable: boolean;
+  resumeWarning: string;
+  settings: Settings;
 };
 export type JoinedMsg = { type: "joined"; id: number; token: string; team: number; name: string };
 export type TooLateMsg = { type: "too_late" };

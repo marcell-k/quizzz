@@ -3,35 +3,64 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 const (
 	firstPort = 8080
 	quizDir   = "quizzes"
+	uiDir     = "ui"
 )
 
-// mediaHandler serves quiz images by plain file name. Only image extensions
-// are allowed, so question .txt files never leave the admin machine.
-func mediaHandler(dir string) http.HandlerFunc {
+// mediaHandler serves files by plain file name. Only listed extensions are
+// allowed, so .txt question files and anything else never leave the machine.
+func mediaHandler(dir string, exts ...string) http.HandlerFunc {
+	allowed := make(map[string]bool, len(exts))
+	for _, e := range exts {
+		allowed[e] = true
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 		if name == "" || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
 			http.NotFound(w, r)
 			return
 		}
-		switch strings.ToLower(filepath.Ext(name)) {
-		case ".jpg", ".jpeg", ".png":
-		default:
+		if !allowed[strings.ToLower(filepath.Ext(name))] {
 			http.NotFound(w, r)
 			return
 		}
 		http.ServeFile(w, r, filepath.Join(dir, name))
+	}
+}
+
+// uiHandler serves the user-editable look: logo images and theme.css.
+// A missing theme.css returns an empty stylesheet, so the <link> never 404s.
+func uiHandler(dir string) http.HandlerFunc {
+	images := mediaHandler(dir, ".jpg", ".jpeg", ".png")
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if name != "theme.css" {
+			images(w, r)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			http.ServeFile(w, r, filepath.Join(dir, name))
+			return
+		}
+		w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		if _, err := io.WriteString(w, "/* ui/theme.css nincs kitöltve. */\n"); err != nil {
+			log.Printf("theme: %v", err)
+		}
 	}
 }
 
@@ -76,6 +105,20 @@ func main() {
 		log.Fatal(err)
 	}
 
+	release, err := acquireLock(lockFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer release()
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-stop
+		release()
+		log.Printf("stopped")
+		os.Exit(0)
+	}()
+
 	ln, port, err := listen()
 	if err != nil {
 		log.Fatal(err)
@@ -87,8 +130,12 @@ func main() {
 		}
 	}
 
-	game := NewGame([]string{"A csapat", "B csapat", "C csapat", "D csapat", "E csapat"}, newToken)
-	hub := NewHub(game, quizDir)
+	settings, err := LoadSettings(settingsFile)
+	if err != nil {
+		log.Printf("settings: %v (using defaults)", err)
+	}
+	game := NewGame(settings, newToken)
+	hub := NewHub(game, quizDir, settingsFile, autosaveFile)
 	go hub.Run()
 
 	mux := http.NewServeMux()
@@ -101,7 +148,8 @@ func main() {
 	mux.HandleFunc("GET /api/quizzes", loopbackOnly(quizzesHandler(quizDir)))
 	mux.HandleFunc("GET /qr.png", loopbackOnly(qrHandler(port)))
 	mux.HandleFunc("GET /info", loopbackOnly(infoHandler(port)))
-	mux.HandleFunc("GET /media/quizzes/{name}", mediaHandler(quizDir))
+	mux.HandleFunc("GET /media/quizzes/{name}", mediaHandler(quizDir, ".jpg", ".jpeg", ".png"))
+	mux.HandleFunc("GET /media/ui/{name}", uiHandler(uiDir))
 	mux.Handle("GET /", http.FileServerFS(dist))
 
 	log.Printf("local:  http://localhost:%d/admin", port)

@@ -6,6 +6,8 @@ quiz.exe
 quiz.lock
 autosave.json
 history.csv
+settings.json
+settings.json.tmp
 .DS_Store
 
 old/

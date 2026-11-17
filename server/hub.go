@@ -8,6 +8,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
+	"sort"
 	"time"
 
 	"github.com/coder/websocket"
@@ -22,15 +24,16 @@ func newToken() string {
 // ---- wire types (keep in sync with web/src/protocol.ts) ----
 
 type inMsg struct {
-	Type   string `json:"type"`
-	Team   int    `json:"team"`
-	Name   string `json:"name"`
-	Token  string `json:"token"`
-	Topic  int    `json:"topic"`
-	Q      int    `json:"q"`
-	File   string `json:"file"`
-	Action string `json:"action"`
-	Value  int    `json:"value"`
+	Type     string    `json:"type"`
+	Team     int       `json:"team"`
+	Name     string    `json:"name"`
+	Token    string    `json:"token"`
+	Topic    int       `json:"topic"`
+	Q        int       `json:"q"`
+	File     string    `json:"file"`
+	Action   string    `json:"action"`
+	Value    int       `json:"value"`
+	Settings *Settings `json:"settings"`
 }
 
 type statePlayer struct {
@@ -85,6 +88,14 @@ type stateMsg struct {
 
 	LightningPoints int    `json:"lightningPoints"`
 	LightningImage  string `json:"lightningImage"`
+
+	LockedPlayers []int  `json:"lockedPlayers"`
+	LockedTeams   []bool `json:"lockedTeams"`
+
+	ResumeAvailable bool   `json:"resumeAvailable"`
+	ResumeWarning   string `json:"resumeWarning"`
+
+	Settings Settings `json:"settings"`
 }
 
 type joinedMsg struct {
@@ -135,19 +146,54 @@ type event struct {
 }
 
 type Hub struct {
-	events  chan event
-	game    *Game
-	clients map[*client]struct{}
-	quizDir string
+	events       chan event
+	game         *Game
+	clients      map[*client]struct{}
+	quizDir      string
+	settingsPath string
+	autosavePath string
+
+	// pending is a saved game waiting for the admin to resume or discard it.
+	pending       *savedState
+	resumeWarning string // code shown in /admin
 }
 
-func NewHub(g *Game, quizDir string) *Hub {
-	return &Hub{
-		events:  make(chan event, 64),
-		game:    g,
-		clients: make(map[*client]struct{}),
-		quizDir: quizDir,
+func NewHub(g *Game, quizDir, settingsPath, autosavePath string) *Hub {
+	h := &Hub{
+		events:       make(chan event, 64),
+		game:         g,
+		clients:      make(map[*client]struct{}),
+		quizDir:      quizDir,
+		settingsPath: settingsPath,
+		autosavePath: autosavePath,
 	}
+	sv, err := LoadAutosave(autosavePath)
+	switch {
+	case err != nil:
+		log.Printf("autosave: %v", err)
+		h.resumeWarning = "resume_broken"
+		if rerr := RemoveAutosave(autosavePath); rerr != nil {
+			log.Printf("autosave remove: %v", rerr)
+		}
+	case sv != nil:
+		path, err := quizPath(quizDir, sv.QuizFile)
+		if err != nil || !fileExists(path) {
+			log.Printf("autosave quiz %q missing, starting fresh", sv.QuizFile)
+			h.resumeWarning = "resume_quiz_missing"
+			if rerr := RemoveAutosave(autosavePath); rerr != nil {
+				log.Printf("autosave remove: %v", rerr)
+			}
+			break
+		}
+		h.pending = sv
+		log.Printf("autosave found: %s, round %s", sv.QuizFile, sv.Round)
+	}
+	return h
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func (h *Hub) Run() {
@@ -191,6 +237,9 @@ func (h *Hub) sendTo(c *client, b []byte) {
 }
 
 func (h *Hub) broadcastState() {
+	if err := SaveAutosave(h.autosavePath, h.game, time.Now()); err != nil {
+		log.Printf("autosave: %v", err)
+	}
 	b := h.stateJSON()
 	for c := range h.clients {
 		h.sendTo(c, b)
@@ -264,6 +313,12 @@ func (h *Hub) stateJSON() []byte {
 		}
 	}
 
+	lockedPlayers := make([]int, 0, len(g.LockedPlayers))
+	for id := range g.LockedPlayers {
+		lockedPlayers = append(lockedPlayers, id)
+	}
+	sort.Ints(lockedPlayers)
+
 	return mustJSON(stateMsg{
 		Type:     "state",
 		Teams:    ts,
@@ -280,7 +335,14 @@ func (h *Hub) stateJSON() []byte {
 		UndoCount: len(g.ScoreLog),
 		Results:   results,
 
-		LightningPoints: g.LightningPoints,
+		LockedPlayers: lockedPlayers,
+		LockedTeams:   g.LockedTeams,
+
+		ResumeAvailable: h.pending != nil,
+		ResumeWarning:   h.resumeWarning,
+
+		LightningPoints: g.Settings.LightningPoints,
+		Settings:        g.Settings,
 		LightningImage:  lightningImage,
 	})
 }
@@ -315,6 +377,12 @@ func (h *Hub) handle(c *client, data []byte) {
 		h.sendError(c, "bad_message")
 		return
 	}
+	// Any admin action other than resume/discard means the teacher works on a
+	// fresh game, so the pending autosave must not come back later.
+	if h.pending != nil && c.admin && m.Type != "resume" && m.Type != "new_game" {
+		h.pending = nil
+		log.Printf("resume discarded")
+	}
 	switch m.Type {
 	case "join":
 		if c.admin {
@@ -339,6 +407,17 @@ func (h *Hub) handle(c *client, data []byte) {
 		} else {
 			h.sendError(c, "no_buzz")
 		}
+	case "open_buzz":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		if !h.game.OpenBuzz() {
+			h.sendError(c, "bad_round")
+			return
+		}
+		log.Printf("buzzer opened")
+		h.broadcastState()
 	case "timer":
 		if !c.admin {
 			h.sendError(c, "forbidden")
@@ -385,9 +464,25 @@ func (h *Hub) handle(c *client, data []byte) {
 			return
 		}
 		h.onUndo(c)
+	case "resume":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		h.onResume(c)
 	case "new_game":
 		if !c.admin {
 			h.sendError(c, "forbidden")
+			return
+		}
+		if h.pending != nil {
+			h.pending = nil
+			h.resumeWarning = ""
+			if err := RemoveAutosave(h.autosavePath); err != nil {
+				log.Printf("autosave remove: %v", err)
+			}
+			log.Printf("resume discarded, fresh game")
+			h.broadcastState()
 			return
 		}
 		if !h.game.StartNewGame() {
@@ -429,6 +524,16 @@ func (h *Hub) handle(c *client, data []byte) {
 		}
 		log.Printf("game ended")
 		h.broadcastState()
+	case "setup":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		if m.Settings == nil {
+			h.sendError(c, "bad_message")
+			return
+		}
+		h.onSetup(*m.Settings)
 	case "load_quiz":
 		if !c.admin {
 			h.sendError(c, "forbidden")
@@ -460,7 +565,7 @@ func (h *Hub) onSelect(c *client, m inMsg) {
 func (h *Hub) onScore(c *client, team, sign int) {
 	points := 0
 	if h.game.Round == RoundLightning {
-		points = h.game.LightningPoints
+		points = h.game.Settings.LightningPoints
 	} else if h.game.Current != nil {
 		points = h.game.Current.Points
 	}
@@ -501,13 +606,66 @@ func (h *Hub) onUndo(c *client) {
 	h.broadcastState()
 }
 
+func (h *Hub) onSetup(st Settings) {
+	if h.game.ApplySettings(st) {
+		log.Printf("board size changed, loaded quiz unloaded")
+	}
+	if err := SaveSettings(h.settingsPath, h.game.Settings); err != nil {
+		log.Printf("settings save: %v", err)
+	}
+	log.Printf("settings: %dx%d board, %d+%d min", h.game.Settings.Topics, h.game.Settings.Questions, h.game.Settings.GameMinutes, h.game.Settings.LightningMinutes)
+	h.broadcastState()
+}
+
+func (h *Hub) onResume(c *client) {
+	if h.pending == nil {
+		h.sendError(c, "no_resume")
+		return
+	}
+	sv := *h.pending
+	path, err := quizPath(h.quizDir, sv.QuizFile)
+	if err != nil || !fileExists(path) {
+		h.failResume("resume_quiz_missing")
+		return
+	}
+	q, warnings, err := LoadQuiz(path, h.game.Settings.Topics, h.game.Settings.Questions)
+	if err != nil {
+		log.Printf("resume quiz %s: %v", sv.QuizFile, err)
+		h.failResume("resume_broken")
+		return
+	}
+	for _, w := range warnings {
+		log.Printf("resume quiz %s: %s", sv.QuizFile, w)
+	}
+	if err := h.game.RestoreState(sv, q); err != nil {
+		log.Printf("resume: %v", err)
+		h.failResume("resume_broken")
+		return
+	}
+	h.pending = nil
+	h.resumeWarning = ""
+	log.Printf("resumed: %s, round %s, %d players", sv.QuizFile, sv.Round, len(sv.Players))
+	h.broadcastState()
+}
+
+// failResume drops a saved game that cannot be restored and tells /admin why.
+func (h *Hub) failResume(code string) {
+	log.Printf("resume failed: %s", code)
+	h.pending = nil
+	h.resumeWarning = code
+	if err := RemoveAutosave(h.autosavePath); err != nil {
+		log.Printf("autosave remove: %v", err)
+	}
+	h.broadcastState()
+}
+
 func (h *Hub) onLoadQuiz(c *client, file string) {
 	path, err := quizPath(h.quizDir, file)
 	if err != nil {
 		h.sendError(c, "bad_file")
 		return
 	}
-	q, warnings, err := LoadQuiz(path, defaultTopics, defaultQuestions)
+	q, warnings, err := LoadQuiz(path, h.game.Settings.Topics, h.game.Settings.Questions)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrNotUTF8):
@@ -528,6 +686,12 @@ func (h *Hub) onLoadQuiz(c *client, file string) {
 		log.Printf("quiz %s: %s", file, w)
 	}
 	h.game.SetQuiz(q)
+	h.game.QuizFile = file
+	h.pending = nil
+	h.game.Settings.LastQuiz = file
+	if err := SaveSettings(h.settingsPath, h.game.Settings); err != nil {
+		log.Printf("settings save: %v", err)
+	}
 	log.Printf("quiz loaded: %s (%d topics)", file, len(q.Topics))
 	h.broadcastState()
 }

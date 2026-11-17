@@ -1,6 +1,24 @@
+/* Overridable from ui/theme.css. Keep these on :root. */
+:root {
+  --font: system-ui, sans-serif;
+  --accent: #b00;
+  --display-bg: #f3f1ec;
+  --display-text: #161616;
+}
+
 body {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font);
   margin: 1rem;
+}
+
+/* ---- shared logo (ui/logo.png) ---- */
+
+.logo {
+  display: block;
+  height: 2.2rem;
+  width: auto;
+  max-width: 40vw;
+  object-fit: contain;
 }
 
 /* ---- player page ---- */
@@ -20,6 +38,12 @@ body {
   margin: 0;
   font-size: 1.3rem;
   color: #444;
+}
+
+.player-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .strip {
@@ -144,7 +168,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.05em;
   color: #fff;
-  background: #b00;
+  background: var(--accent);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-user-select: none;
@@ -172,7 +196,107 @@ body {
   color: #b00;
 }
 
+.help {
+  margin: 0.8rem 0 0;
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
 /* ---- admin page ---- */
+
+.admin-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+
+.admin-head h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.resume-panel {
+  margin-bottom: 0.8rem;
+  border-color: #e0b64a;
+  background: #fff8e1;
+}
+
+.resume-panel .actions {
+  margin-top: 0;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.7rem;
+}
+
+.settings-grid .field:first-child {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.field input,
+.field select {
+  min-width: 0;
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.45rem;
+  border: 1px solid #bbb;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #111;
+}
+
+.panel h3 {
+  margin: 0.9rem 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.team-names,
+.points-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.6rem;
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+
+.check input:disabled + span {
+  color: #999;
+}
 
 .admin {
   display: grid;
@@ -432,8 +556,8 @@ body.display-page {
   margin: 0;
   height: 100dvh;
   overflow: hidden;
-  background: #f3f1ec;
-  color: #161616;
+  background: var(--display-bg);
+  color: var(--display-text);
 }
 
 .display {
@@ -561,7 +685,7 @@ body.display-page {
 }
 
 .display-who.open {
-  color: #b00;
+  color: var(--accent);
 }
 
 .display-scores {
@@ -693,9 +817,17 @@ body.display-page {
   box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
 }
 
+.display-logo {
+  position: fixed;
+  top: 0.8rem;
+  left: 1rem;
+  height: clamp(2rem, 6vh, 4.5rem);
+  max-width: 30vw;
+}
+
 .display-conn {
   position: fixed;
-  top: 0.6rem;
+  bottom: 0.6rem;
   left: 0.8rem;
   margin: 0;
   font-size: 0.9rem;

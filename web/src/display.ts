@@ -1,6 +1,7 @@
 import { t } from "./strings";
 import { connect } from "./ws";
 import { teamColor } from "./colors";
+import { logo } from "./logo";
 import { formatClock, remainingSeconds, startTick } from "./timer";
 import type { ServerMsg, StateMsg, TimerInfo } from "./protocol";
 
@@ -33,7 +34,7 @@ qr.alt = "";
 const connEl = el("p", "display-conn hidden", t.disconnected);
 
 const page = el("div", "display");
-page.append(main, scores, qr, connEl);
+page.append(main, scores, logo("display-logo"), qr, connEl);
 document.body.classList.add("display-page");
 document.body.replaceChildren(page);
 

@@ -1,6 +1,7 @@
 import { t, errorText } from "./strings";
 import { connect } from "./ws";
 import { teamColor } from "./colors";
+import { logo } from "./logo";
 import type { BuzzerState, ServerMsg } from "./protocol";
 
 const TOKEN_KEY = "quiz.token";
@@ -101,7 +102,10 @@ connEl.textContent = t.disconnected;
 
 const page = document.createElement("div");
 page.className = "player";
-page.append(strip, title, viewTeam, viewName, viewBuzz, connEl);
+const head = document.createElement("div");
+head.className = "player-head";
+head.append(logo(), title);
+page.append(head, strip, viewTeam, viewName, viewBuzz, connEl);
 document.body.replaceChildren(page);
 
 // ---- local state ----
@@ -120,6 +124,12 @@ let myName = "";
 let lastBuzzer: BuzzerState = "locked";
 let buzzedBy = 0;
 let late = false;
+let lockedPlayers: number[] = [];
+let lockedTeams: boolean[] = [];
+
+function amLockedOut(): boolean {
+  return lockedPlayers.includes(myID) || lockedTeams[myTeam] === true;
+}
 
 function show(v: View): void {
   viewTeam.classList.toggle("hidden", v !== "team");
@@ -178,6 +188,9 @@ function renderBuzz(): void {
   } else if (late) {
     buzzBtn.classList.add("late");
     hint = t.tooLate;
+  } else if (amLockedOut() && lastBuzzer !== "buzzed") {
+    buzzBtn.classList.add("locked");
+    hint = t.lockedOut;
   } else if (lastBuzzer === "open") {
     enabled = true;
   } else if (lastBuzzer === "buzzed") {
@@ -207,6 +220,7 @@ function setOnline(v: boolean): void {
 function onMsg(m: ServerMsg): void {
   switch (m.type) {
     case "state": {
+      title.textContent = m.settings.title || t.appTitle;
       teams = m.teams.map((x) => x.name);
       const key = teams.join("|");
       if (key !== lastTeamsKey) {
@@ -223,6 +237,8 @@ function onMsg(m: ServerMsg): void {
       lastBuzzer = m.buzzer;
       buzzedBy = m.buzzedBy;
       late = false;
+      lockedPlayers = m.lockedPlayers;
+      lockedTeams = m.lockedTeams;
       if (joined) {
         renderWho();
         strip.style.background = myTeam >= 0 ? teamColor(myTeam) : "transparent";

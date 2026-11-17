@@ -58,6 +58,31 @@ export const t = {
   newGame: "Új játék",
   editScore: "Pontszám szerkesztése",
   confirmNewGame: "Biztosan új játékot indítasz? A pontszámok nullázódnak.",
+  settings: "Beállítások",
+  title: "Cím",
+  team: "Csapat",
+  teamNames: "Csapatnevek",
+  gameMinutes: "Játékidő (perc)",
+  lightningMinutes: "Villámidő (perc)",
+  boardSize: "Tábla mérete",
+  topics: "Téma",
+  questionsPerTopic: "Kérdés / téma",
+  questionPoints: "Pontok kérdésenként",
+  lightningPoints: "Villámpont",
+  rules: "Szabályok",
+  ruleReopenOnWrong: "Hibás válasz után újra lehet jelentkezni",
+  ruleLockoutTeam: "Hibás válasz után az egész csapat kimarad",
+  ruleSubtractPoints: "Hibás válasz levonja a pontot",
+  ruleAutoOpen: "Kérdés kiválasztásakor nyílik a jelentkezés",
+  boardSizeHint: "Táblaméret módosítása kiüríti a betöltött feladatsort.",
+  openBuzz: "Jelentkezés nyitása",
+  lockedOut: "Kimaradtál ebből a kérdésből.",
+  out: "kimaradt",
+  resumeTitle: "Előző játék folytatható.",
+  resumeContinue: "Folytatás",
+  resumeNew: "Új játék",
+  resumeBroken: "A mentett játék nem olvasható, új játék indul.",
+  resumeQuizMissing: "A mentett feladatsor nem található, új játék indul.",
 } as const;
 
 const errors: Record<string, string> = {
@@ -80,6 +105,8 @@ const errors: Record<string, string> = {
   bad_round: "Hibás kör.",
   nothing_to_undo: "Nincs visszavonható pontváltozás.",
   bad_score: "Hibás pontszám.",
+  bad_settings: "Hibás beállítás.",
+  no_resume: "Nincs folytatható játék.",
 };
 
 export function errorText(code: string): string {

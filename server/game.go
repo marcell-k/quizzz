@@ -62,20 +62,7 @@ var (
 	ErrNameInUse = errors.New("name in use")
 )
 
-const (
-	maxNameLen = 30
-
-	// Temporary settings defaults until step 10 adds settings.json.
-	defaultTopics          = 5
-	defaultQuestions       = 6
-	defaultGameMinutes     = 30
-	defaultGameDuration    = defaultGameMinutes * time.Minute
-	defaultLightningPoints = 3000
-	// Old Delphi app default lightning length: 3 minutes.
-	defaultLightningDuration = 3 * time.Minute
-)
-
-var defaultPoints = []int{1000, 2000, 3000, 4000, 5000, 8000}
+const maxNameLen = 30
 
 // Timer is a display-only countdown. Clients render EndsAt; the server owns
 // pause and resume. Zero does not stop the game.
@@ -177,8 +164,8 @@ type Team struct {
 // ScoreChange is one entry of the undo log. Delta is what was added to the
 // team score, so undo subtracts it again.
 type ScoreChange struct {
-	Team  int
-	Delta int
+	Team  int `json:"team"`
+	Delta int `json:"delta"`
 }
 
 // Standing is one row of the final results. Ties share a rank.
@@ -199,39 +186,47 @@ type Game struct {
 	Teams    []Team // empty name = unused slot
 	Players  []*Player
 	Quiz     *Quiz
+	QuizFile string   // loaded file name with .txt, for autosave/reload
 	Board    [][]bool // used[topic][q]
 	Current  *Current
 	Round    Round
-	Points   []int // points per question index, temporary until settings
+	Points   []int // points per question index, mirrors Settings.Points
 	Buzzer   BuzzerState
 	BuzzedBy int // player ID, 0 = none
 	Timer    Timer
 	ScoreLog []ScoreChange
 
-	// Temporary values until step 10 adds settings.json.
-	LightningPoints   int
-	LightningDuration time.Duration
+	// Lockouts for the current question (plan section 8). Only filled when the
+	// wrong-answer reopening rule is on. Reset with every new/cleared question.
+	LockedTeams   []bool
+	LockedPlayers map[int]bool
+
+	// Settings is settings.json: title, teams, board size, points, lengths,
+	// rule toggles, last quiz.
+	Settings Settings
 
 	nextID   int
 	newToken func() string
 }
 
 // NewGame starts on the board with a locked buzzer. A quiz is loaded later.
-func NewGame(teams []string, newToken func() string) *Game {
-	ts := make([]Team, len(teams))
-	for i, name := range teams {
+func NewGame(st Settings, newToken func() string) *Game {
+	st.normalize()
+	ts := make([]Team, len(st.Teams))
+	for i, name := range st.Teams {
 		ts[i] = Team{Name: name}
 	}
 	return &Game{
-		Teams:             ts,
-		Points:            pointsForQuestions(defaultQuestions),
-		Round:             RoundBoard,
-		Buzzer:            BuzzerLocked,
-		Timer:             NewTimer(defaultGameDuration),
-		LightningPoints:   defaultLightningPoints,
-		LightningDuration: defaultLightningDuration,
-		nextID:            1,
-		newToken:          newToken,
+		Settings:      st,
+		Teams:         ts,
+		Points:        append([]int(nil), st.Points...),
+		Round:         RoundBoard,
+		Buzzer:        BuzzerLocked,
+		Timer:         NewTimer(st.GameDuration()),
+		LockedTeams:   make([]bool, len(ts)),
+		LockedPlayers: make(map[int]bool),
+		nextID:        1,
+		newToken:      newToken,
 	}
 }
 
@@ -264,7 +259,12 @@ func (g *Game) SetQuiz(q *Quiz) {
 		questions = len(q.Questions[0])
 	}
 	g.Quiz = q
-	g.Points = pointsForQuestions(questions)
+	g.QuizFile = ""
+	if len(g.Points) != questions {
+		g.Points = pointsForQuestions(questions)
+		g.Settings.Questions = questions
+		g.Settings.Points = append([]int(nil), g.Points...)
+	}
 	g.Board = make([][]bool, len(q.Topics))
 	for t := range g.Board {
 		g.Board[t] = make([]bool, questions)
@@ -272,8 +272,45 @@ func (g *Game) SetQuiz(q *Quiz) {
 	g.Current = nil
 	g.Buzzer = BuzzerLocked
 	g.BuzzedBy = 0
+	g.resetLockouts()
 	g.Round = RoundBoard
-	g.Timer.Reset(defaultGameDuration)
+	g.Timer.Reset(g.Settings.GameDuration())
+}
+
+// ApplySettings replaces the settings. Team names update in place, so scores
+// and players stay attached. A board size that no longer matches the loaded
+// quiz unloads the quiz: the teacher must load a matching file again.
+func (g *Game) ApplySettings(st Settings) (quizUnloaded bool) {
+	st.normalize()
+	for i := range g.Teams {
+		if i < len(st.Teams) {
+			g.Teams[i].Name = st.Teams[i]
+		}
+	}
+	g.Settings = st
+	g.Points = append([]int(nil), st.Points...)
+	if g.Round == RoundBoard && !g.Timer.Started {
+		g.Timer.Reset(st.GameDuration())
+	}
+	if g.Quiz == nil {
+		return false
+	}
+	topics := len(g.Quiz.Topics)
+	questions := 0
+	if len(g.Quiz.Questions) > 0 {
+		questions = len(g.Quiz.Questions[0])
+	}
+	if topics == st.Topics && questions == st.Questions {
+		return false
+	}
+	g.Quiz = nil
+	g.QuizFile = ""
+	g.Board = nil
+	g.Current = nil
+	g.Buzzer = BuzzerLocked
+	g.BuzzedBy = 0
+	g.resetLockouts()
+	return true
 }
 
 // Join order: token match, then same team+name, then new player.
@@ -318,15 +355,31 @@ func (g *Game) Disconnect(id int) {
 
 // Buzz is the single entry for all buzz sources. First call while OPEN wins.
 func (g *Game) Buzz(playerID int) BuzzResult {
-	if g.Player(playerID) == nil {
+	p := g.Player(playerID)
+	if p == nil {
 		return BuzzUnknown
 	}
-	if g.Buzzer != BuzzerOpen {
+	if g.Buzzer != BuzzerOpen || g.isLockedOut(p) {
 		return BuzzLate
 	}
 	g.Buzzer = BuzzerBuzzed
 	g.BuzzedBy = playerID
 	return BuzzWon
+}
+
+// isLockedOut reports whether the player sat out the current question (wrong
+// answer with reopening on, whole-team lockout optional).
+func (g *Game) isLockedOut(p *Player) bool {
+	if g.LockedPlayers[p.ID] {
+		return true
+	}
+	return p.Team >= 0 && p.Team < len(g.LockedTeams) && g.LockedTeams[p.Team]
+}
+
+// resetLockouts clears per-question lockouts. Safe on a zero value.
+func (g *Game) resetLockouts() {
+	g.LockedPlayers = make(map[int]bool)
+	g.LockedTeams = make([]bool, len(g.Teams))
 }
 
 // CancelBuzz: BUZZED -> OPEN, no score change. Returns false if nobody buzzed.
@@ -359,9 +412,24 @@ func (g *Game) SelectAt(topic, q int, now time.Time) bool {
 	}
 	g.Board[topic][q] = true
 	g.Current = &Current{Topic: topic, Q: q, Points: g.Points[q]}
-	g.Buzzer = BuzzerOpen
+	g.resetLockouts()
 	g.BuzzedBy = 0
+	if g.Settings.Rules.AutoOpen {
+		g.Buzzer = BuzzerOpen
+	} else {
+		g.Buzzer = BuzzerLocked
+	}
 	g.Timer.Start(now)
+	return true
+}
+
+// OpenBuzz opens the buzzer manually when auto-open is off. Returns false when
+// there is nothing to open.
+func (g *Game) OpenBuzz() bool {
+	if g.Round != RoundBoard || g.Current == nil || g.Buzzer != BuzzerLocked {
+		return false
+	}
+	g.Buzzer = BuzzerOpen
 	return true
 }
 
@@ -377,7 +445,8 @@ func (g *Game) StartLightning(now time.Time) bool {
 	g.Current = nil
 	g.BuzzedBy = 0
 	g.Buzzer = BuzzerOpen
-	g.Timer.Reset(g.LightningDuration)
+	g.resetLockouts()
+	g.Timer.Reset(g.Settings.LightningDuration())
 	g.Timer.Start(now)
 	return true
 }
@@ -392,6 +461,7 @@ func (g *Game) EndGame(now time.Time) bool {
 	g.Current = nil
 	g.BuzzedBy = 0
 	g.Buzzer = BuzzerLocked
+	g.resetLockouts()
 	g.Timer.Pause(now)
 	return true
 }
@@ -416,7 +486,8 @@ func (g *Game) StartNewGame() bool {
 	g.Buzzer = BuzzerLocked
 	g.BuzzedBy = 0
 	g.ScoreLog = nil
-	g.Timer.Reset(defaultGameDuration)
+	g.resetLockouts()
+	g.Timer.Reset(g.Settings.GameDuration())
 	return true
 }
 
@@ -424,19 +495,21 @@ func (g *Game) StartNewGame() bool {
 // In lightning it awards LightningPoints and reopens the buzzer instead.
 func (g *Game) Plus(team int) bool { return g.score(team, 1) }
 
-// Minus subtracts the current question points (rule default: on), then clears.
-// In lightning it subtracts LightningPoints and reopens the buzzer instead.
+// Minus marks a wrong answer. Points are subtracted only when the setting is
+// on. With reopening off the question clears; with reopening on both the
+// question and the buzzer stay, and the answerer sits out (whole team
+// optionally). In lightning it only subtracts and reopens.
 func (g *Game) Minus(team int) bool { return g.score(team, -1) }
 
-// score handles both rounds. On the board it uses Current question points and
-// clears the question. In lightning it uses LightningPoints and reopens the
-// buzzer right after every press.
+// score handles both rounds. On the board it uses Current question points. In
+// lightning it uses LightningPoints and reopens the buzzer right after every
+// press; no lockouts there.
 func (g *Game) score(team, sign int) bool {
 	if !g.validTeam(team) {
 		return false
 	}
 	if g.Round == RoundLightning {
-		g.addScore(team, sign*g.LightningPoints)
+		g.addScore(team, sign*g.Settings.LightningPoints)
 		g.Buzzer = BuzzerOpen
 		g.BuzzedBy = 0
 		return true
@@ -444,9 +517,38 @@ func (g *Game) score(team, sign int) bool {
 	if g.Current == nil {
 		return false
 	}
-	g.addScore(team, sign*g.Current.Points)
+	if sign > 0 || g.Settings.Rules.SubtractPoints {
+		g.addScore(team, sign*g.Current.Points)
+	}
+	if sign < 0 && g.Settings.Rules.ReopenOnWrong {
+		g.reopenAfterWrong(team)
+		return true
+	}
 	g.clearQuestion()
 	return true
+}
+
+// reopenAfterWrong keeps the question open and benches the answering player,
+// or the whole team when that rule is on. Falls back to the pressed team when
+// nobody buzzed.
+func (g *Game) reopenAfterWrong(team int) {
+	by := g.BuzzedBy
+	g.Buzzer = BuzzerOpen
+	g.BuzzedBy = 0
+	p := g.Player(by)
+	if g.Settings.Rules.LockoutTeam {
+		locked := team
+		if p != nil {
+			locked = p.Team
+		}
+		if locked >= 0 && locked < len(g.LockedTeams) {
+			g.LockedTeams[locked] = true
+		}
+		return
+	}
+	if p != nil {
+		g.LockedPlayers[p.ID] = true
+	}
 }
 
 // addScore applies delta and records it for undo. A zero delta is not logged.
@@ -518,6 +620,7 @@ func (g *Game) clearQuestion() {
 	g.Current = nil
 	g.Buzzer = BuzzerLocked
 	g.BuzzedBy = 0
+	g.resetLockouts()
 }
 
 func (g *Game) validTeam(team int) bool {
