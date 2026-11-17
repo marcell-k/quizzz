@@ -410,12 +410,10 @@ function renderBoard(m: StateMsg): void {
     return;
   }
   noQuiz.classList.add("hidden");
-  board.style.gridTemplateColumns = `minmax(7rem, 1.2fr) repeat(${n}, minmax(3.2rem, 1fr))`;
-  const cells: HTMLElement[] = [el("div", "col", "")];
-  for (let q = 0; q < n; q++) cells.push(el("div", "col", `#${q + 1}`));
-  m.topics.forEach((topic, ti) => {
-    cells.push(el("div", "topic", topic));
-    for (let q = 0; q < n; q++) {
+  board.style.gridTemplateColumns = `repeat(${m.topics.length}, minmax(5rem, 1fr))`;
+  const cells: HTMLElement[] = m.topics.map((topic) => el("div", "topic", topic));
+  for (let q = 0; q < n; q++) {
+    for (let ti = 0; ti < m.topics.length; ti++) {
       const used = m.used[ti]?.[q] ?? false;
       const b = el("button", "cell", fmt(m.points[q] ?? 0));
       b.type = "button";
@@ -427,7 +425,7 @@ function renderBoard(m: StateMsg): void {
       };
       cells.push(b);
     }
-  });
+  }
   board.replaceChildren(...cells);
 }
 

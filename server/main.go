@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 )
@@ -20,6 +21,9 @@ const (
 	quizDir   = "quizzes"
 	uiDir     = "ui"
 )
+
+// sponsorsDir holds sponsor logos for the /display footer.
+var sponsorsDir = filepath.Join(uiDir, "sponsors")
 
 // mediaHandler serves files by plain file name. Only listed extensions are
 // allowed, so .txt question files and anything else never leave the machine.
@@ -76,6 +80,47 @@ func quizzesHandler(dir string) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-store")
 		if err := json.NewEncoder(w).Encode(names); err != nil {
 			log.Printf("list quizzes: %v", err)
+		}
+	}
+}
+
+// listSponsors returns image names in dir sorted by file name.
+// Missing dir = empty list.
+func listSponsors(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	names := []string{}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		switch strings.ToLower(filepath.Ext(e.Name())) {
+		case ".jpg", ".jpeg", ".png":
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// sponsorsHandler lists sponsor logos. Public: /display may run on another
+// machine than the server.
+func sponsorsHandler(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		names, err := listSponsors(dir)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		if err := json.NewEncoder(w).Encode(names); err != nil {
+			log.Printf("list sponsors: %v", err)
 		}
 	}
 }
@@ -146,10 +191,12 @@ func main() {
 	mux.HandleFunc("GET /ws", hub.playerHandler)
 	mux.HandleFunc("GET /ws/admin", loopbackOnly(hub.adminHandler))
 	mux.HandleFunc("GET /api/quizzes", loopbackOnly(quizzesHandler(quizDir)))
+	mux.HandleFunc("GET /api/sponsors", sponsorsHandler(sponsorsDir))
 	mux.HandleFunc("GET /qr.png", loopbackOnly(qrHandler(port)))
 	mux.HandleFunc("GET /info", loopbackOnly(infoHandler(port)))
 	mux.HandleFunc("GET /media/quizzes/{name}", mediaHandler(quizDir, ".jpg", ".jpeg", ".png"))
 	mux.HandleFunc("GET /media/ui/{name}", uiHandler(uiDir))
+	mux.HandleFunc("GET /media/sponsors/{name}", mediaHandler(sponsorsDir, ".jpg", ".jpeg", ".png"))
 	mux.Handle("GET /", http.FileServerFS(dist))
 
 	log.Printf("local:  http://localhost:%d/admin", port)

@@ -22,21 +22,58 @@ function fmt(n: number): string {
 
 // ---- DOM ----
 
+const headTitle = el("h1", "display-head-title", t.appTitle);
+const head = el("header", "display-head");
+head.append(logo("display-logo"), headTitle);
+
 const main = el("main", "display-main");
-const scores = el("footer", "display-scores");
+
 const timerCard = el("div", "display-timer");
 const timerName = el("span", "name", t.gameTime);
 const timerClock = el("span", "clock", "--:--");
 timerCard.append(timerName, timerClock);
+
+const teams = el("div", "display-teams");
 const qr = el("img", "display-qr");
 qr.src = "/qr.png";
 qr.alt = "";
+
+const side = el("aside", "display-side");
+side.append(timerCard, teams, qr);
+
+const body = el("div", "display-body");
+body.append(main, side);
+
+const sponsors = el("footer", "display-sponsors hidden");
 const connEl = el("p", "display-conn hidden", t.disconnected);
 
 const page = el("div", "display");
-page.append(main, scores, logo("display-logo"), qr, connEl);
+page.append(head, body, sponsors, connEl);
 document.body.classList.add("display-page");
 document.body.replaceChildren(page);
+
+// ---- sponsors ----
+
+function loadSponsors(): void {
+  fetch("/api/sponsors")
+    .then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json() as Promise<string[]>;
+    })
+    .then((names) => {
+      sponsors.replaceChildren(
+        ...names.map((name) => {
+          const img = el("img", "display-sponsor");
+          img.src = `/media/sponsors/${encodeURIComponent(name)}`;
+          img.alt = "";
+          img.onerror = () => img.remove();
+          return img;
+        }),
+      );
+      sponsors.classList.toggle("hidden", names.length === 0);
+    })
+    .catch(() => sponsors.classList.add("hidden"));
+}
 
 // ---- render ----
 
@@ -46,17 +83,21 @@ function renderTimer(): void {
   timerClock.textContent = timerState ? formatClock(remainingSeconds(timerState)) : "--:--";
 }
 
-
-
-function renderScores(m: StateMsg): void {
-  scores.replaceChildren(
-    timerCard,
+function renderTeams(m: StateMsg): void {
+  const buzzTeam = m.players.find((p) => p.id === m.buzzedBy)?.team ?? -1;
+  teams.replaceChildren(
     ...m.teams.flatMap((team, i) => {
       if (team.name === "") return [];
       const card = el("div", "display-team");
+      const row = el("div", "row");
       const dot = el("span", "dot");
       dot.style.background = teamColor(i);
-      card.append(dot, el("span", "name", team.name), el("span", "score", fmt(team.score)));
+      row.append(dot, el("span", "name", team.name));
+      card.append(row, el("div", "score", fmt(team.score)));
+      if (m.buzzer === "buzzed" && i === buzzTeam) {
+        card.classList.add("buzzing");
+        card.style.borderColor = teamColor(i);
+      }
       return [card];
     }),
   );
@@ -69,21 +110,19 @@ function renderBoard(m: StateMsg): void {
     return;
   }
   const board = el("div", "display-board");
-  board.style.gridTemplateColumns = `minmax(9rem, 1.3fr) repeat(${n}, minmax(0, 1fr))`;
-  board.style.gridTemplateRows = `auto repeat(${m.topics.length}, minmax(0, 1fr))`;
+  board.style.gridTemplateColumns = `repeat(${m.topics.length}, minmax(0, 1fr))`;
+  board.style.gridTemplateRows = `auto repeat(${n}, minmax(0, 1fr))`;
 
-  const cells: HTMLElement[] = [el("div", "display-col", "")];
-  for (let q = 0; q < n; q++) cells.push(el("div", "display-col", `#${q + 1}`));
-
-  m.topics.forEach((topic, ti) => {
-    cells.push(el("div", "display-topic", topic));
-    for (let q = 0; q < n; q++) {
+  // row 1: topic names. Then one row per question level.
+  const cells: HTMLElement[] = m.topics.map((topic) => el("div", "display-topic", topic));
+  for (let q = 0; q < n; q++) {
+    for (let ti = 0; ti < m.topics.length; ti++) {
       const used = m.used[ti]?.[q] ?? false;
       const cell = el("div", "display-cell", fmt(m.points[q] ?? 0));
       if (used) cell.classList.add("used");
       cells.push(cell);
     }
-  });
+  }
   board.replaceChildren(...cells);
   main.replaceChildren(board);
 }
@@ -146,8 +185,7 @@ function renderSetup(m: StateMsg): void {
   const box = el("div", "display-question");
   const online = m.players.filter((p) => p.online).length;
   box.append(
-    el("h1", "display-title", m.settings.title),
-    el("p", "display-qmeta", t.scanToJoin),
+    el("h1", "display-title", t.scanToJoin),
     el("p", "display-qmeta", `${t.players}: ${online}`),
   );
   main.replaceChildren(box);
@@ -175,15 +213,19 @@ function renderEnded(m: StateMsg): void {
 
 function render(m: StateMsg): void {
   timerState = m.timer;
+  headTitle.textContent = m.settings.title || t.appTitle;
   timerName.textContent = m.round === "lightning" ? t.lightningTime : t.gameTime;
   renderTimer();
-  renderScores(m);
+  renderTeams(m);
+
+  // setup: QR takes the sidebar slot. Other rounds: clock + teams.
   const setup = m.round === "setup";
-  scores.classList.toggle("hidden", setup);
+  timerCard.classList.toggle("hidden", setup);
+  teams.classList.toggle("hidden", setup);
   qr.classList.toggle("hidden", !setup);
 
   switch (m.round) {
-	case "setup":
+    case "setup":
       renderSetup(m);
       break;
     case "ended":
@@ -206,6 +248,7 @@ connect(
   onMsg,
   () => {
     connEl.classList.add("hidden");
+    loadSponsors();
   },
   () => {
     connEl.classList.remove("hidden");
