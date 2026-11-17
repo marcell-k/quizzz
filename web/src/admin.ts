@@ -5,6 +5,7 @@ import { logo } from "./logo";
 import { formatClock, remainingSeconds, startTick } from "./timer";
 import type {
   BuzzerState,
+  PlayerInfo,
   Round,
   ServerMsg,
   Settings,
@@ -62,57 +63,53 @@ const buzzerLabels: Record<BuzzerState, string> = {
   buzzed: t.buzzerBuzzed,
 };
 
-// ---- DOM ----
+interface PlayersWidget {
+  root: HTMLDetailsElement;
+  summary: HTMLElement;
+  list: HTMLUListElement;
+}
+
+function playersWidget(): PlayersWidget {
+  const root = el("details", "players-details");
+  const summary = el("summary", "", t.players);
+  const list = el("ul", "player-list");
+  root.append(summary, list);
+  return { root, summary, list };
+}
+
+// ---- header ----
 
 const h1 = el("h1", "", `${t.appTitle}: ${t.admin}`);
 const helpLink = el("a", "link", t.help);
 helpLink.href = "/help";
-const status = el("p", "status");
 const connEl = el("p", "conn");
-const url = el("p", "hint");
-const qr = el("img");
-qr.src = "/qr.png";
-qr.width = 220;
-qr.height = 220;
+const head = el("div", "admin-head");
+head.append(logo(), h1, helpLink, connEl);
+
+const resumeText = el("p", "status");
+const resumeContinueBtn = el("button", "btn", t.resumeContinue);
+const resumeNewBtn = el("button", "btn", t.resumeNew);
+const resumeActions = el("div", "actions");
+resumeActions.append(resumeContinueBtn, resumeNewBtn);
+const resumePanel = el("section", "panel resume-panel hidden");
+resumePanel.append(resumeText, resumeActions);
+
+// ---- setup view: 1 join, 2 quiz, 3 settings, sticky start bar ----
+
+const joinCount = el("p", "status");
+const joinTeams = el("div", "join-teams");
+const setupPlayers = playersWidget();
+const joinPanel = panel(`1 · ${t.joinStep}`, joinCount, joinTeams, setupPlayers.root);
 
 const quizSel = el("select");
 const loadBtn = el("button", "btn", t.loadQuiz);
+const quizStatus = el("p", "hint", t.noQuiz);
 const quizMsg = el("p", "err");
 quizSel.disabled = true;
 loadBtn.disabled = true;
-const startGameBtn = el("button", "btn", t.startGame);
-startGameBtn.disabled = true;
-
-const noQuiz = el("p", "hint", t.noQuiz);
-noQuiz.classList.add("hidden");
-const board = el("div", "board");
-
-const qBox = el("div", "qbox");
-const noneBtn = el("button", "btn", t.noAnswer);
-const cancelBtn = el("button", "btn", t.cancelBuzz);
-const openBtn = el("button", "btn", t.openBuzz);
-const opMsg = el("p", "err");
-noneBtn.disabled = true;
-cancelBtn.disabled = true;
-openBtn.disabled = true;
-const actions = el("div", "actions");
-actions.append(noneBtn, cancelBtn, openBtn);
-
-const teamList = el("div", "team-list-admin");
-const undoBtn = el("button", "btn undo-btn", t.undo);
-undoBtn.disabled = true;
-const playerList = el("ul", "player-list");
-
-const resultsList = el("div", "results-admin");
-const newGameBtn = el("button", "btn", t.newGame);
-const resultsPanel = panel(t.results, resultsList, newGameBtn);
-resultsPanel.classList.add("wide", "hidden");
-
-const timerClock = el("p", "timer-clock", "00:00");
-const timerBtn = el("button", "btn timer-btn", t.pauseTimer);
-timerBtn.disabled = true;
-
-// ---- settings panel ----
+const quizRow = el("div", "quiz-row");
+quizRow.append(quizSel, loadBtn);
+const quizPanel = panel(`2 · ${t.quizFile}`, quizRow, quizStatus, quizMsg);
 
 const setTitle = el("input");
 setTitle.type = "text";
@@ -163,76 +160,114 @@ settingsGrid.append(
   field(t.title, setTitle),
   field(t.gameMinutes, gameMin),
   field(t.lightningMinutes, lightMin),
-  field(t.topics, topicsSel),
-  field(t.questionsPerTopic, questionsSel),
   field(t.lightningPoints, lightningPts),
 );
 
-const settingsPanel = panel(t.settings);
-settingsPanel.classList.add("wide");
-settingsPanel.append(
-  settingsGrid,
-  el("h3", "", t.teamNames),
-  namesRow,
-  el("h3", "", t.questionPoints),
-  pointsRow,
-  el("h3", "", t.rules),
-  checks,
+const sizeRow = el("div", "size-row");
+sizeRow.append(
+  field(t.topics, topicsSel),
+  field(t.questionsPerTopic, questionsSel),
   el("p", "hint", t.boardSizeHint),
 );
 
+const settingsLeft = el("div");
+settingsLeft.append(
+  el("h3", "", t.teamNames),
+  namesRow,
+  el("h3", "", t.boardSize),
+  sizeRow,
+  el("h3", "", t.questionPoints),
+  pointsRow,
+);
+const settingsRight = el("div");
+settingsRight.append(el("h3", "", t.rules), checks);
+const settingsCols = el("div", "settings-cols");
+settingsCols.append(settingsLeft, settingsRight);
+
+const settingsPanel = panel(`3 · ${t.settings}`, settingsGrid, settingsCols);
+
+const checkQuiz = el("span", "check-item");
+const checkPlayers = el("span", "check-item");
+const barInfo = el("div", "bar-info");
+barInfo.append(checkQuiz, checkPlayers);
+const startGameBtn = el("button", "btn btn-primary", `${t.startGame} ▶`);
+startGameBtn.disabled = true;
+const setupBar = el("div", "bar bar-bottom");
+setupBar.append(barInfo, startGameBtn);
+
+const setupTop = el("div", "admin-top");
+setupTop.append(joinPanel, quizPanel);
+const setupView = el("div", "admin-view");
+setupView.append(setupTop, settingsPanel, setupBar);
+
+// ---- game view: top bar, board + teams, sticky question bar ----
+
+const timerClock = el("span", "timer-clock", "00:00");
+const timerBtn = el("button", "btn", t.pauseTimer);
+timerBtn.disabled = true;
 const startLightningBtn = el("button", "btn", t.startLightning);
 const endGameBtn = el("button", "btn", t.endGame);
+const undoBtn = el("button", "btn", `↶ ${t.undo}`);
 startLightningBtn.disabled = true;
 endGameBtn.disabled = true;
-
-const boardPanel = panel(t.board, noQuiz, board);
-boardPanel.classList.add("wide");
-const questionPanel = panel(t.currentQuestion, status, qBox, actions, opMsg);
-questionPanel.classList.add("wide");
-const teamsPanel = panel(t.teams, teamList, undoBtn);
-teamsPanel.classList.add("wide");
-
-const resumeText = el("p", "status");
-const resumeContinueBtn = el("button", "btn", t.resumeContinue);
-const resumeNewBtn = el("button", "btn", t.resumeNew);
-const resumeActions = el("div", "actions");
-resumeActions.append(resumeContinueBtn, resumeNewBtn);
-const resumePanel = el("section", "panel resume-panel hidden");
-resumePanel.append(resumeText, resumeActions);
-
-const qrPanel = panel(t.scanToJoin, qr, url);
-const quizPanel = panel(t.quizFile, quizSel, loadBtn, startGameBtn, quizMsg);
-const timerPanel = panel(t.gameTime, timerClock, timerBtn);
-const flowPanel = panel(t.gameFlow, startLightningBtn, endGameBtn);
-
-// setup round: QR, quiz, settings. Other rounds: game panels.
-const setupPanels: HTMLElement[] = [qrPanel, quizPanel, settingsPanel];
-const gamePanels: HTMLElement[] = [timerPanel, flowPanel, boardPanel, questionPanel, teamsPanel];
-
-const grid = el("div", "admin");
-grid.append(
-  qrPanel,
-  quizPanel,
-  settingsPanel,
-  timerPanel,
-  flowPanel,
-  boardPanel,
-  questionPanel,
-  resultsPanel,
-  teamsPanel,
-  panel(t.players, playerList),
+undoBtn.disabled = true;
+const topbar = el("div", "bar");
+topbar.append(
+  timerClock,
+  timerBtn,
+  el("span", "spacer"),
+  startLightningBtn,
+  endGameBtn,
+  undoBtn,
 );
-const head = el("div", "admin-head");
-head.append(logo(), h1, helpLink, connEl);
-document.body.replaceChildren(head, resumePanel, grid);
+
+const noQuiz = el("p", "hint", t.noQuiz);
+noQuiz.classList.add("hidden");
+const board = el("div", "board");
+const boardPanel = panel(t.board, noQuiz, board);
+
+const resultsList = el("div", "results-admin");
+const newGameBtn = el("button", "btn", t.newGame);
+const resultsPanel = panel(t.results, resultsList, newGameBtn);
+resultsPanel.classList.add("hidden");
+
+const gameLeft = el("div", "game-left");
+gameLeft.append(boardPanel, resultsPanel);
+
+const teamList = el("div", "team-list-admin");
+const gamePlayers = playersWidget();
+const teamsPanel = panel(t.teams, teamList, gamePlayers.root);
+
+const gameMain = el("div", "game-main");
+gameMain.append(gameLeft, teamsPanel);
+
+const buzzStatus = el("p", "buzz-status locked");
+const qBox = el("div", "qbox");
+const opMsg = el("p", "err");
+const noneBtn = el("button", "btn", t.noAnswer);
+const cancelBtn = el("button", "btn", t.cancelBuzz);
+const openBtn = el("button", "btn", t.openBuzz);
+noneBtn.disabled = true;
+cancelBtn.disabled = true;
+openBtn.disabled = true;
+const actions = el("div", "actions");
+actions.append(noneBtn, cancelBtn, openBtn);
+const qinfo = el("div", "qinfo");
+qinfo.append(buzzStatus, qBox, opMsg);
+const qbar = el("div", "bar bar-bottom qbar");
+qbar.append(qinfo, actions);
+
+const gameView = el("div", "admin-view hidden");
+gameView.append(topbar, gameMain, qbar);
+
+document.body.replaceChildren(head, resumePanel, setupView, gameView);
 
 // ---- state ----
 
 let peekFor = "";
 let loadPending = false;
 let timerState: TimerInfo | null = null;
-let currentRound: Round = "board";
+let currentRound: Round = "setup";
 let lastState: StateMsg | null = null;
 let lightningPrompted = false;
 let quizPicked = false;
@@ -445,10 +480,15 @@ function editScore(team: number, name: string, current: number): void {
 }
 
 function renderTeams(m: StateMsg): void {
+  const buzzTeam = m.players.find((p) => p.id === m.buzzedBy)?.team ?? -1;
   const rows: HTMLElement[] = [];
   m.teams.forEach((team, i) => {
     if (team.name === "") return;
     const row = el("div", "team-row");
+    if (m.buzzer === "buzzed" && i === buzzTeam) {
+      row.classList.add("buzzing");
+      row.style.borderColor = teamColor(i);
+    }
     const dot = el("span", "dot");
     dot.style.background = teamColor(i);
     const plus = el("button", "score-btn", "+");
@@ -496,16 +536,34 @@ function renderResults(m: StateMsg): void {
   );
 }
 
+function playerItem(m: StateMsg, p: PlayerInfo): HTMLLIElement {
+  const li = el("li");
+  const out = m.lockedPlayers.includes(p.id) || m.lockedTeams[p.team] === true;
+  const status = p.online ? t.online : t.offline;
+  li.textContent = `${m.teams[p.team]?.name ?? "?"}: ${p.name} (${status}${out ? `, ${t.out}` : ""})`;
+  return li;
+}
+
 function renderPlayers(m: StateMsg): void {
-  playerList.replaceChildren(
-    ...m.players.map((p) => {
-      const li = el("li");
-      const out = m.lockedPlayers.includes(p.id) || m.lockedTeams[p.team] === true;
-      const status = p.online ? t.online : t.offline;
-      li.textContent = `${m.teams[p.team]?.name ?? "?"}: ${p.name} (${status}${out ? `, ${t.out}` : ""})`;
-      return li;
-    }),
-  );
+  for (const w of [setupPlayers, gamePlayers]) {
+    w.summary.textContent = `${t.players} (${m.players.length})`;
+    w.list.replaceChildren(...m.players.map((p) => playerItem(m, p)));
+  }
+
+  const online = m.players.filter((p) => p.online).length;
+  joinCount.textContent = `${t.players}: ${online}`;
+  const rows: HTMLElement[] = [];
+  m.teams.forEach((team, i) => {
+    if (team.name === "") return;
+    const mine = m.players.filter((p) => p.team === i);
+    const on = mine.filter((p) => p.online).length;
+    const row = el("div", "join-row");
+    const dot = el("span", "dot");
+    dot.style.background = teamColor(i);
+    row.append(dot, el("span", "tname", team.name), el("span", "join-count", `${on}/${mine.length}`));
+    rows.push(row);
+  });
+  joinTeams.replaceChildren(...rows);
 }
 
 function resumePrompt(warning: string): string {
@@ -528,11 +586,34 @@ function renderResume(m: StateMsg): void {
   resumeNewBtn.disabled = false;
 }
 
+function renderSetupBar(m: StateMsg): void {
+  const hasQuiz = m.topics.length > 0;
+  const online = m.players.filter((p) => p.online).length;
+  checkQuiz.textContent = `${hasQuiz ? "✓" : "✗"} ${t.quizReady}`;
+  checkQuiz.classList.toggle("ok", hasQuiz);
+  checkPlayers.textContent = `${online > 0 ? "✓" : "–"} ${online} ${t.players.toLowerCase()}`;
+  checkPlayers.classList.toggle("ok", online > 0);
+  startGameBtn.disabled = m.round !== "setup" || !hasQuiz;
+  startGameBtn.title = hasQuiz ? "" : t.startNeedsQuiz;
+
+  if (hasQuiz) {
+    const file = m.settings.lastQuiz;
+    quizStatus.textContent = `✓ ${t.loaded}${file ? `: ${file}` : ""} — ${m.topics.length} ${t.topicsUnit} × ${m.points.length} ${t.questionsUnit}`;
+    quizStatus.className = "hint quiz-ok";
+  } else {
+    quizStatus.textContent = t.noQuiz;
+    quizStatus.className = "hint";
+  }
+}
+
 function renderVisibility(m: StateMsg): void {
   const setup = m.round === "setup";
-  for (const p of setupPanels) p.classList.toggle("hidden", !setup);
-  for (const p of gamePanels) p.classList.toggle("hidden", setup);
-  startGameBtn.disabled = !setup || m.topics.length === 0;
+  const ended = m.round === "ended";
+  setupView.classList.toggle("hidden", !setup);
+  gameView.classList.toggle("hidden", setup);
+  boardPanel.classList.toggle("hidden", ended);
+  resultsPanel.classList.toggle("hidden", !ended);
+  qbar.classList.toggle("hidden", ended);
 }
 
 function render(m: StateMsg): void {
@@ -541,19 +622,21 @@ function render(m: StateMsg): void {
   renderResume(m);
   renderTimer();
   renderVisibility(m);
-  const label = buzzerLabels[m.buzzer];
+  renderSetupBar(m);
+
   const by = m.players.find((p) => p.id === m.buzzedBy);
-  status.textContent = by
-    ? `${t.buzzer}: ${label} — ${m.teams[by.team]?.name ?? "?"}: ${by.name}`
-    : `${t.buzzer}: ${label}`;
+  buzzStatus.className = `buzz-status ${m.buzzer}`;
+  buzzStatus.style.background = by ? teamColor(by.team) : "";
+  buzzStatus.textContent = by
+    ? `${t.buzzer}: ${buzzerLabels[m.buzzer]} — ${m.teams[by.team]?.name ?? "?"}: ${by.name}`
+    : `${t.buzzer}: ${buzzerLabels[m.buzzer]}`;
+
   noneBtn.disabled = m.current === null;
   cancelBtn.disabled = m.buzzer !== "buzzed";
   openBtn.disabled = !(m.round === "board" && m.current !== null && m.buzzer === "locked");
   startLightningBtn.disabled = m.round !== "board";
   endGameBtn.disabled = m.round === "ended" || m.round === "setup";
   undoBtn.disabled = m.undoCount === 0;
-  undoBtn.textContent = t.undo;
-  resultsPanel.classList.toggle("hidden", m.round !== "ended");
   newGameBtn.disabled = m.round !== "ended";
   renderSettings(m.settings);
   applyLastQuiz(m.settings.lastQuiz);
@@ -575,7 +658,7 @@ function onMsg(m: ServerMsg): void {
       break;
     case "error": {
       const text = errorText(m.msg);
-	  if (loadPending || currentRound === "setup") {
+      if (loadPending || currentRound === "setup") {
         loadPending = false;
         quizMsg.textContent = text;
       } else {
@@ -603,6 +686,7 @@ function fillQuizzes(names: string[]): void {
   }
   quizSel.disabled = false;
   loadBtn.disabled = false;
+  if (lastState) applyLastQuiz(lastState.settings.lastQuiz);
 }
 
 fetch("/api/quizzes")
@@ -612,15 +696,6 @@ fetch("/api/quizzes")
   })
   .then(fillQuizzes)
   .catch(() => fillQuizzes([]));
-
-fetch("/info")
-  .then((r) => r.text())
-  .then((u) => {
-    url.textContent = u;
-  })
-  .catch(() => {
-    url.textContent = "?";
-  });
 
 // ---- actions ----
 
@@ -642,7 +717,7 @@ settingsPanel.addEventListener("change", () => {
   const settings = readSettings();
   if (!settings) {
     if (lastState) renderSettings(lastState.settings);
-	  quizMsg.textContent = errorText("bad_settings");
+    quizMsg.textContent = errorText("bad_settings");
     return;
   }
   quizMsg.textContent = "";

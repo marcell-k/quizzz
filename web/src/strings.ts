@@ -84,6 +84,12 @@ export const t = {
   resumeNew: "Új játék",
   resumeBroken: "A mentett játék nem olvasható, új játék indul.",
   resumeQuizMissing: "A mentett feladatsor nem található, új játék indul.",
+  joinStep: "Csatlakozás",
+  loaded: "Betöltve",
+  topicsUnit: "téma",
+  questionsUnit: "kérdés",
+  quizReady: "feladatsor",
+  startNeedsQuiz: "Előbb tölts be feladatsort.",
 
   // Help page
   helpQuickStart: "Gyors indítás",
