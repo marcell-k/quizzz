@@ -46,9 +46,7 @@ function renderTimer(): void {
   timerClock.textContent = timerState ? formatClock(remainingSeconds(timerState)) : "--:--";
 }
 
-function anyUsed(m: StateMsg): boolean {
-  return m.used.some((row) => row.some(Boolean));
-}
+
 
 function renderScores(m: StateMsg): void {
   scores.replaceChildren(
@@ -144,6 +142,17 @@ function renderLightning(m: StateMsg): void {
   main.replaceChildren(box);
 }
 
+function renderSetup(m: StateMsg): void {
+  const box = el("div", "display-question");
+  const online = m.players.filter((p) => p.online).length;
+  box.append(
+    el("h1", "display-title", m.settings.title),
+    el("p", "display-qmeta", t.scanToJoin),
+    el("p", "display-qmeta", `${t.players}: ${online}`),
+  );
+  main.replaceChildren(box);
+}
+
 function renderEnded(m: StateMsg): void {
   const box = el("div", "display-results");
   box.append(el("h1", "display-title", t.results));
@@ -169,10 +178,14 @@ function render(m: StateMsg): void {
   timerName.textContent = m.round === "lightning" ? t.lightningTime : t.gameTime;
   renderTimer();
   renderScores(m);
-  const beforeGame = m.current === null && !anyUsed(m) && m.round !== "lightning" && m.round !== "ended";
-  qr.classList.toggle("hidden", !beforeGame);
+  const setup = m.round === "setup";
+  scores.classList.toggle("hidden", setup);
+  qr.classList.toggle("hidden", !setup);
 
   switch (m.round) {
+	case "setup":
+      renderSetup(m);
+      break;
     case "ended":
       renderEnded(m);
       break;

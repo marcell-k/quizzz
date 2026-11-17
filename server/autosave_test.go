@@ -175,7 +175,7 @@ func TestRestoreRejectsBadRound(t *testing.T) {
 	if err != nil || sv == nil {
 		t.Fatalf("load: %v", err)
 	}
-	sv.Round = "setup"
+	sv.Round = "bogus"
 	g2 := NewGame(g.Settings, func() string { return "new" })
 	if err := g2.RestoreState(*sv, testQuiz(t)); err == nil {
 		t.Fatal("setup round accepted")

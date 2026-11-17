@@ -14,6 +14,7 @@ export type LoadQuizMsg = { type: "load_quiz"; file: string };
 export type TimerMsg = { type: "timer"; action: "pause" | "resume" };
 export type StartLightningMsg = { type: "start_lightning" };
 export type EndGameMsg = { type: "end_game" };
+export type StartGameMsg = { type: "start_game" };
 
 export interface Rules {
   reopenOnWrong: boolean;
@@ -56,7 +57,8 @@ export type ClientMsg =
   | EndGameMsg
   | SetupMsg
   | OpenBuzzMsg
-  | ResumeMsg;
+  | ResumeMsg
+  | StartGameMsg;
 
 export type BuzzerState = "locked" | "open" | "buzzed";
 export type Round = "setup" | "board" | "lightning" | "ended";

@@ -331,13 +331,14 @@ body {
   font-weight: 600;
 }
 
-.admin .conn {
-  margin: 0;
+.admin-head .conn {
+  margin: 0 0 0 auto;
   font-size: 0.85rem;
   color: #080;
 }
 
-.admin .conn.offline {
+
+.admin-head .conn.offline {
   color: #b00;
 }
 

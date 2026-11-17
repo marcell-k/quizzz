@@ -78,6 +78,8 @@ const loadBtn = el("button", "btn", t.loadQuiz);
 const quizMsg = el("p", "err");
 quizSel.disabled = true;
 loadBtn.disabled = true;
+const startGameBtn = el("button", "btn", t.startGame);
+startGameBtn.disabled = true;
 
 const noQuiz = el("p", "hint", t.noQuiz);
 noQuiz.classList.add("hidden");
@@ -184,7 +186,7 @@ endGameBtn.disabled = true;
 
 const boardPanel = panel(t.board, noQuiz, board);
 boardPanel.classList.add("wide");
-const questionPanel = panel(t.currentQuestion, qBox, actions, opMsg);
+const questionPanel = panel(t.currentQuestion, status, qBox, actions, opMsg);
 questionPanel.classList.add("wide");
 const teamsPanel = panel(t.teams, teamList, undoBtn);
 teamsPanel.classList.add("wide");
@@ -197,13 +199,22 @@ resumeActions.append(resumeContinueBtn, resumeNewBtn);
 const resumePanel = el("section", "panel resume-panel hidden");
 resumePanel.append(resumeText, resumeActions);
 
+const qrPanel = panel(t.scanToJoin, qr, url);
+const quizPanel = panel(t.quizFile, quizSel, loadBtn, startGameBtn, quizMsg);
+const timerPanel = panel(t.gameTime, timerClock, timerBtn);
+const flowPanel = panel(t.gameFlow, startLightningBtn, endGameBtn);
+
+// setup round: QR, quiz, settings. Other rounds: game panels.
+const setupPanels: HTMLElement[] = [qrPanel, quizPanel, settingsPanel];
+const gamePanels: HTMLElement[] = [timerPanel, flowPanel, boardPanel, questionPanel, teamsPanel];
+
 const grid = el("div", "admin");
 grid.append(
-  panel(t.scanToJoin, qr, url, status, connEl),
-  panel(t.quizFile, quizSel, loadBtn, quizMsg),
+  qrPanel,
+  quizPanel,
   settingsPanel,
-  panel(t.gameTime, timerClock, timerBtn),
-  panel(t.gameFlow, startLightningBtn, endGameBtn),
+  timerPanel,
+  flowPanel,
   boardPanel,
   questionPanel,
   resultsPanel,
@@ -211,7 +222,7 @@ grid.append(
   panel(t.players, playerList),
 );
 const head = el("div", "admin-head");
-head.append(logo(), h1);
+head.append(logo(), h1, connEl);
 document.body.replaceChildren(head, resumePanel, grid);
 
 // ---- state ----
@@ -517,11 +528,19 @@ function renderResume(m: StateMsg): void {
   resumeNewBtn.disabled = false;
 }
 
+function renderVisibility(m: StateMsg): void {
+  const setup = m.round === "setup";
+  for (const p of setupPanels) p.classList.toggle("hidden", !setup);
+  for (const p of gamePanels) p.classList.toggle("hidden", setup);
+  startGameBtn.disabled = !setup || m.topics.length === 0;
+}
+
 function render(m: StateMsg): void {
   currentRound = m.round;
   timerState = m.timer;
   renderResume(m);
   renderTimer();
+  renderVisibility(m);
   const label = buzzerLabels[m.buzzer];
   const by = m.players.find((p) => p.id === m.buzzedBy);
   status.textContent = by
@@ -531,7 +550,7 @@ function render(m: StateMsg): void {
   cancelBtn.disabled = m.buzzer !== "buzzed";
   openBtn.disabled = !(m.round === "board" && m.current !== null && m.buzzer === "locked");
   startLightningBtn.disabled = m.round !== "board";
-  endGameBtn.disabled = m.round === "ended";
+  endGameBtn.disabled = m.round === "ended" || m.round === "setup";
   undoBtn.disabled = m.undoCount === 0;
   undoBtn.textContent = t.undo;
   resultsPanel.classList.toggle("hidden", m.round !== "ended");
@@ -556,7 +575,7 @@ function onMsg(m: ServerMsg): void {
       break;
     case "error": {
       const text = errorText(m.msg);
-      if (loadPending) {
+	  if (loadPending || currentRound === "setup") {
         loadPending = false;
         quizMsg.textContent = text;
       } else {
@@ -623,12 +642,17 @@ settingsPanel.addEventListener("change", () => {
   const settings = readSettings();
   if (!settings) {
     if (lastState) renderSettings(lastState.settings);
-    opMsg.textContent = errorText("bad_settings");
+	  quizMsg.textContent = errorText("bad_settings");
     return;
   }
-  opMsg.textContent = "";
+  quizMsg.textContent = "";
   conn.send({ type: "setup", settings });
 });
+
+startGameBtn.onclick = () => {
+  quizMsg.textContent = "";
+  conn.send({ type: "start_game" });
+};
 
 resumeContinueBtn.onclick = () => {
   resumeContinueBtn.disabled = true;

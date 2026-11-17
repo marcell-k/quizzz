@@ -209,7 +209,7 @@ type Game struct {
 	newToken func() string
 }
 
-// NewGame starts on the board with a locked buzzer. A quiz is loaded later.
+// NewGame starts in setup with a locked buzzer. A quiz is loaded, then StartGame.
 func NewGame(st Settings, newToken func() string) *Game {
 	st.normalize()
 	ts := make([]Team, len(st.Teams))
@@ -220,7 +220,7 @@ func NewGame(st Settings, newToken func() string) *Game {
 		Settings:      st,
 		Teams:         ts,
 		Points:        append([]int(nil), st.Points...),
-		Round:         RoundBoard,
+		Round:         RoundSetup,
 		Buzzer:        BuzzerLocked,
 		Timer:         NewTimer(st.GameDuration()),
 		LockedTeams:   make([]bool, len(ts)),
@@ -273,8 +273,18 @@ func (g *Game) SetQuiz(q *Quiz) {
 	g.Buzzer = BuzzerLocked
 	g.BuzzedBy = 0
 	g.resetLockouts()
-	g.Round = RoundBoard
 	g.Timer.Reset(g.Settings.GameDuration())
+}
+
+// StartGame leaves setup for the board. Needs a loaded quiz.
+func (g *Game) StartGame() bool {
+	if g.Round != RoundSetup || g.Quiz == nil {
+		return false
+	}
+	g.Round = RoundBoard
+	g.Buzzer = BuzzerLocked
+	g.BuzzedBy = 0
+	return true
 }
 
 // ApplySettings replaces the settings. Team names update in place, so scores
@@ -289,7 +299,7 @@ func (g *Game) ApplySettings(st Settings) (quizUnloaded bool) {
 	}
 	g.Settings = st
 	g.Points = append([]int(nil), st.Points...)
-	if g.Round == RoundBoard && !g.Timer.Started {
+	if g.Round == RoundSetup || (g.Round == RoundBoard && !g.Timer.Started) {
 		g.Timer.Reset(st.GameDuration())
 	}
 	if g.Quiz == nil {
@@ -454,10 +464,10 @@ func (g *Game) StartLightning(now time.Time) bool {
 // EndGame stops the game: buzzer locked, current question cleared, timer
 // paused. Results come from Standings; history is added in a later step.
 func (g *Game) EndGame(now time.Time) bool {
-	if g.Round == RoundEnded {
+	if g.Round == RoundEnded || g.Round == RoundSetup {
 		return false
 	}
-	g.Round = RoundEnded
+	g.Round = RoundSetup
 	g.Current = nil
 	g.BuzzedBy = 0
 	g.Buzzer = BuzzerLocked

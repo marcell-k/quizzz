@@ -45,6 +45,7 @@ export const t = {
   lightningHint: "A tanár felolvassa a kérdést. Pontozás után a jelentkezés újra nyílik.",
   gameFlow: "Játék menete",
   startLightning: "Villámkérdések indítása",
+  startGame: "Játék indítása",
   endGame: "Játék befejezése",
   confirmLightning: "Nem minden kérdés van felhasználva. Biztosan indítod a villámkérdéseket?",
   confirmLightningFull: "Minden kérdés felhasználva. Indítod a villámkérdéseket?",

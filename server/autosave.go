@@ -159,6 +159,8 @@ func RemoveAutosave(path string) error {
 
 func parseRound(s string) (Round, bool) {
 	switch s {
+	case "setup":
+		return RoundSetup, true
 	case "board":
 		return RoundBoard, true
 	case "lightning":

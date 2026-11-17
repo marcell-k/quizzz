@@ -30,6 +30,9 @@ func boardGame(t *testing.T) *Game {
 	t.Helper()
 	g := testGame()
 	g.SetQuiz(testQuiz(t))
+	if !g.StartGame() {
+		t.Fatal("start game failed")
+	}
 	return g
 }
 
@@ -120,8 +123,8 @@ func TestNewGameLocked(t *testing.T) {
 	if g.Buzzer != BuzzerLocked {
 		t.Fatalf("buzzer = %v, want locked", g.Buzzer)
 	}
-	if g.Round != RoundBoard {
-		t.Fatalf("round = %v, want board", g.Round)
+	if g.Round != RoundSetup {
+		t.Fatalf("round = %v, want setup", g.Round)
 	}
 	if g.Quiz != nil {
 		t.Fatal("quiz set before load")
@@ -155,6 +158,9 @@ func TestSetQuizCustomSize(t *testing.T) {
 		HasImage:  [][]bool{{false, false, false}, {false, false, false}},
 	}
 	g.SetQuiz(q)
+	if !g.StartGame() {
+		t.Fatal("start game failed")
+	}
 	if len(g.Board) != 2 || len(g.Board[0]) != 3 {
 		t.Fatalf("board = %dx%d, want 2x3", len(g.Board), len(g.Board[0]))
 	}
@@ -560,6 +566,9 @@ func TestCurrentQuestion(t *testing.T) {
 	q.HasImage[1][2] = true
 	q.Images[1][2] = "quiz_23.jpg"
 	g.SetQuiz(q)
+	if !g.StartGame() {
+		t.Fatal("start game failed")
+	}
 	g.Select(1, 2)
 	text, has := g.CurrentQuestion()
 	if text != "Kérdés23" || !has {
@@ -829,7 +838,7 @@ func TestStartNewGame(t *testing.T) {
 	if !g.StartNewGame() {
 		t.Fatal("new game after end failed")
 	}
-	if g.Round != RoundBoard || g.Current != nil || g.Buzzer != BuzzerLocked || g.BuzzedBy != 0 {
+	if g.Round != RoundSetup || g.Current != nil || g.Buzzer != BuzzerLocked || g.BuzzedBy != 0 {
 		t.Fatalf("bad new game state: %+v %v %d %v", g.Current, g.Buzzer, g.BuzzedBy, g.Round)
 	}
 	for i, team := range g.Teams {
@@ -858,5 +867,39 @@ func TestStartNewGame(t *testing.T) {
 	}
 	if g.StartNewGame() {
 		t.Fatal("second new game accepted without end")
+	}
+}
+
+func TestStartGame(t *testing.T) {
+	g := testGame()
+	if g.StartGame() {
+		t.Fatal("started without quiz")
+	}
+	g.SetQuiz(testQuiz(t))
+	if g.Round != RoundSetup {
+		t.Fatalf("round = %v, want setup", g.Round)
+	}
+	if g.Select(0, 0) {
+		t.Fatal("select accepted in setup")
+	}
+	if !g.StartGame() {
+		t.Fatal("start game failed")
+	}
+	if g.Round != RoundBoard || g.Buzzer != BuzzerLocked {
+		t.Fatalf("round = %v, buzzer = %v", g.Round, g.Buzzer)
+	}
+	if g.StartGame() {
+		t.Fatal("second start accepted")
+	}
+	if !g.Select(0, 0) {
+		t.Fatal("select rejected after start")
+	}
+}
+
+func TestEndGameFromSetup(t *testing.T) {
+	g := testGame()
+	g.SetQuiz(testQuiz(t))
+	if g.EndGame(time.Now()) {
+		t.Fatal("end game accepted in setup")
 	}
 }

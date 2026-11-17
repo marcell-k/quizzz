@@ -524,9 +524,28 @@ func (h *Hub) handle(c *client, data []byte) {
 		}
 		log.Printf("game ended")
 		h.broadcastState()
+	case "start_game":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		if h.game.Quiz == nil {
+			h.sendError(c, "no_quiz")
+			return
+		}
+		if !h.game.StartGame() {
+			h.sendError(c, "bad_round")
+			return
+		}
+		log.Printf("game started")
+		h.broadcastState()
 	case "setup":
 		if !c.admin {
 			h.sendError(c, "forbidden")
+			return
+		}
+		if h.game.Round != RoundSetup {
+			h.sendError(c, "bad_round")
 			return
 		}
 		if m.Settings == nil {
@@ -537,6 +556,10 @@ func (h *Hub) handle(c *client, data []byte) {
 	case "load_quiz":
 		if !c.admin {
 			h.sendError(c, "forbidden")
+			return
+		}
+		if h.game.Round != RoundSetup {
+			h.sendError(c, "bad_round")
 			return
 		}
 		h.onLoadQuiz(c, m.File)
