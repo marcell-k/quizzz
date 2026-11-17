@@ -6,6 +6,9 @@ export type CancelBuzzMsg = { type: "cancel_buzz" };
 export type SelectMsg = { type: "select"; topic: number; q: number };
 export type PlusMsg = { type: "plus"; team: number };
 export type MinusMsg = { type: "minus"; team: number };
+export type SetScoreMsg = { type: "set_score"; team: number; value: number };
+export type UndoMsg = { type: "undo" };
+export type NewGameMsg = { type: "new_game" };
 export type NoneMsg = { type: "none" };
 export type LoadQuizMsg = { type: "load_quiz"; file: string };
 export type TimerMsg = { type: "timer"; action: "pause" | "resume" };
@@ -19,6 +22,9 @@ export type ClientMsg =
   | SelectMsg
   | PlusMsg
   | MinusMsg
+  | SetScoreMsg
+  | UndoMsg
+  | NewGameMsg
   | NoneMsg
   | LoadQuizMsg
   | TimerMsg
@@ -49,6 +55,12 @@ export interface CurrentInfo {
   image: string;
 }
 
+export interface ResultInfo {
+  team: number;
+  rank: number;
+  score: number;
+}
+
 export interface TimerInfo {
   started: boolean;
   paused: boolean;
@@ -68,6 +80,8 @@ export type StateMsg = {
   used: boolean[][];
   current: CurrentInfo | null;
   timer: TimerInfo;
+  undoCount: number;
+  results: ResultInfo[] | null;
   lightningPoints: number;
   lightningImage: string;
 };

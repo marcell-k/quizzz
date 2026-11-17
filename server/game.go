@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"sort"
 	"strings"
 	"time"
 )
@@ -173,6 +174,20 @@ type Team struct {
 	Score int
 }
 
+// ScoreChange is one entry of the undo log. Delta is what was added to the
+// team score, so undo subtracts it again.
+type ScoreChange struct {
+	Team  int
+	Delta int
+}
+
+// Standing is one row of the final results. Ties share a rank.
+type Standing struct {
+	Team  int
+	Rank  int
+	Score int
+}
+
 // Current is the open question. Board cell is already marked used.
 type Current struct {
 	Topic  int
@@ -191,6 +206,7 @@ type Game struct {
 	Buzzer   BuzzerState
 	BuzzedBy int // player ID, 0 = none
 	Timer    Timer
+	ScoreLog []ScoreChange
 
 	// Temporary values until step 10 adds settings.json.
 	LightningPoints   int
@@ -367,7 +383,7 @@ func (g *Game) StartLightning(now time.Time) bool {
 }
 
 // EndGame stops the game: buzzer locked, current question cleared, timer
-// paused. Results and history are added in a later step.
+// paused. Results come from Standings; history is added in a later step.
 func (g *Game) EndGame(now time.Time) bool {
 	if g.Round == RoundEnded {
 		return false
@@ -377,6 +393,30 @@ func (g *Game) EndGame(now time.Time) bool {
 	g.BuzzedBy = 0
 	g.Buzzer = BuzzerLocked
 	g.Timer.Pause(now)
+	return true
+}
+
+// StartNewGame resets scores, board, current question, undo log and timer.
+// Teams, players, the loaded quiz and settings stay. Allowed only after the
+// game has ended, so a running game cannot be wiped by accident.
+func (g *Game) StartNewGame() bool {
+	if g.Round != RoundEnded {
+		return false
+	}
+	for i := range g.Teams {
+		g.Teams[i].Score = 0
+	}
+	for t := range g.Board {
+		for q := range g.Board[t] {
+			g.Board[t][q] = false
+		}
+	}
+	g.Current = nil
+	g.Round = RoundBoard
+	g.Buzzer = BuzzerLocked
+	g.BuzzedBy = 0
+	g.ScoreLog = nil
+	g.Timer.Reset(defaultGameDuration)
 	return true
 }
 
@@ -396,7 +436,7 @@ func (g *Game) score(team, sign int) bool {
 		return false
 	}
 	if g.Round == RoundLightning {
-		g.Teams[team].Score += sign * g.LightningPoints
+		g.addScore(team, sign*g.LightningPoints)
 		g.Buzzer = BuzzerOpen
 		g.BuzzedBy = 0
 		return true
@@ -404,9 +444,65 @@ func (g *Game) score(team, sign int) bool {
 	if g.Current == nil {
 		return false
 	}
-	g.Teams[team].Score += sign * g.Current.Points
+	g.addScore(team, sign*g.Current.Points)
 	g.clearQuestion()
 	return true
+}
+
+// addScore applies delta and records it for undo. A zero delta is not logged.
+func (g *Game) addScore(team, delta int) {
+	g.Teams[team].Score += delta
+	if delta != 0 {
+		g.ScoreLog = append(g.ScoreLog, ScoreChange{Team: team, Delta: delta})
+	}
+}
+
+// SetScore sets a team score directly (manual edit). The difference is logged
+// so Undo can restore the previous value.
+func (g *Game) SetScore(team, value int) bool {
+	if !g.validTeam(team) {
+		return false
+	}
+	g.addScore(team, value-g.Teams[team].Score)
+	return true
+}
+
+// Undo reverts the last score change. It does not reopen the question, un-use
+// the cell, or change the buzzer. Returns false when the log is empty.
+func (g *Game) Undo() (ScoreChange, bool) {
+	n := len(g.ScoreLog)
+	if n == 0 {
+		return ScoreChange{}, false
+	}
+	c := g.ScoreLog[n-1]
+	g.ScoreLog = g.ScoreLog[:n-1]
+	if g.validTeam(c.Team) {
+		g.Teams[c.Team].Score -= c.Delta
+	}
+	return c, true
+}
+
+// Standings returns active teams by score, highest first. Ties share a rank:
+// 100, 100, 50 -> 1, 1, 3. Unused team slots are skipped.
+func (g *Game) Standings() []Standing {
+	out := make([]Standing, 0, len(g.Teams))
+	for i, t := range g.Teams {
+		if t.Name == "" {
+			continue
+		}
+		out = append(out, Standing{Team: i, Score: t.Score})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Score > out[j].Score
+	})
+	for i := range out {
+		if i > 0 && out[i].Score == out[i-1].Score {
+			out[i].Rank = out[i-1].Rank
+		} else {
+			out[i].Rank = i + 1
+		}
+	}
+	return out
 }
 
 // None is "Nincs válasz": clear the question, lock the buzzer. Cell stays used.

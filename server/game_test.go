@@ -636,3 +636,225 @@ func TestCancelBuzz(t *testing.T) {
 		t.Fatalf("b after cancel: %v, want won", r)
 	}
 }
+
+func TestScoreLogPlusMinus(t *testing.T) {
+	g := boardGame(t)
+	g.Select(0, 0)
+	g.Plus(0)
+	g.Select(0, 1)
+	g.Minus(1)
+	if len(g.ScoreLog) != 2 {
+		t.Fatalf("log = %+v, want 2 entries", g.ScoreLog)
+	}
+	if g.ScoreLog[0] != (ScoreChange{Team: 0, Delta: 1000}) {
+		t.Fatalf("first change = %+v", g.ScoreLog[0])
+	}
+	if g.ScoreLog[1] != (ScoreChange{Team: 1, Delta: -2000}) {
+		t.Fatalf("second change = %+v", g.ScoreLog[1])
+	}
+}
+
+func TestScoreLogLightning(t *testing.T) {
+	g := boardGame(t)
+	g.StartLightning(time.Now())
+	g.Plus(0)
+	g.Minus(0)
+	if g.Teams[0].Score != 0 {
+		t.Fatalf("score = %d, want 0", g.Teams[0].Score)
+	}
+	if len(g.ScoreLog) != 2 {
+		t.Fatalf("log = %+v, want 2 entries", g.ScoreLog)
+	}
+	if g.ScoreLog[0].Delta != 3000 || g.ScoreLog[1].Delta != -3000 {
+		t.Fatalf("log = %+v", g.ScoreLog)
+	}
+}
+
+func TestSetScore(t *testing.T) {
+	g := testGame()
+	if !g.SetScore(0, 5000) {
+		t.Fatal("set score failed")
+	}
+	if g.Teams[0].Score != 5000 {
+		t.Fatalf("score = %d, want 5000", g.Teams[0].Score)
+	}
+	if len(g.ScoreLog) != 1 || g.ScoreLog[0] != (ScoreChange{Team: 0, Delta: 5000}) {
+		t.Fatalf("log = %+v", g.ScoreLog)
+	}
+	if !g.SetScore(0, 5000) {
+		t.Fatal("same value rejected")
+	}
+	if len(g.ScoreLog) != 1 {
+		t.Fatalf("same value logged: %+v", g.ScoreLog)
+	}
+	if !g.SetScore(1, -1200) || g.Teams[1].Score != -1200 {
+		t.Fatalf("negative score = %d", g.Teams[1].Score)
+	}
+	for _, team := range []int{-1, 3, 4} {
+		if g.SetScore(team, 0) {
+			t.Fatalf("set score accepted team %d", team)
+		}
+	}
+}
+
+func TestUndoScore(t *testing.T) {
+	g := boardGame(t)
+	if _, ok := g.Undo(); ok {
+		t.Fatal("undo accepted empty log")
+	}
+	g.Select(0, 0)
+	g.Plus(0)
+	g.Select(0, 1)
+	g.Minus(0)
+	if g.Teams[0].Score != -1000 {
+		t.Fatalf("score = %d, want -1000", g.Teams[0].Score)
+	}
+	if _, ok := g.Undo(); !ok {
+		t.Fatal("undo minus failed")
+	}
+	if g.Teams[0].Score != 1000 {
+		t.Fatalf("score after first undo = %d, want 1000", g.Teams[0].Score)
+	}
+	if _, ok := g.Undo(); !ok {
+		t.Fatal("undo plus failed")
+	}
+	if g.Teams[0].Score != 0 {
+		t.Fatalf("score after second undo = %d, want 0", g.Teams[0].Score)
+	}
+	if _, ok := g.Undo(); ok {
+		t.Fatal("undo accepted exhausted log")
+	}
+}
+
+func TestUndoKeepsQuestionClosed(t *testing.T) {
+	g := boardGame(t)
+	g.Select(0, 0)
+	g.Plus(0)
+	if _, ok := g.Undo(); !ok {
+		t.Fatal("undo failed")
+	}
+	if g.Current != nil || g.Buzzer != BuzzerLocked || g.BuzzedBy != 0 {
+		t.Fatalf("undo restored question: %+v %v %d", g.Current, g.Buzzer, g.BuzzedBy)
+	}
+	if !g.Board[0][0] {
+		t.Fatal("undo un-used the board cell")
+	}
+}
+
+func TestUndoManualEdit(t *testing.T) {
+	g := testGame()
+	g.SetScore(0, 5000)
+	g.SetScore(0, 7000)
+	if _, ok := g.Undo(); !ok {
+		t.Fatal("undo failed")
+	}
+	if g.Teams[0].Score != 5000 {
+		t.Fatalf("score = %d, want 5000", g.Teams[0].Score)
+	}
+	if _, ok := g.Undo(); !ok {
+		t.Fatal("second undo failed")
+	}
+	if g.Teams[0].Score != 0 {
+		t.Fatalf("score = %d, want 0", g.Teams[0].Score)
+	}
+}
+
+func TestUndoAfterEnd(t *testing.T) {
+	g := boardGame(t)
+	g.Select(0, 0)
+	g.Plus(0)
+	g.EndGame(time.Now())
+	if !g.SetScore(1, 4000) {
+		t.Fatal("set score after end failed")
+	}
+	if _, ok := g.Undo(); !ok {
+		t.Fatal("undo after end failed")
+	}
+	if g.Teams[1].Score != 0 {
+		t.Fatalf("score = %d, want 0", g.Teams[1].Score)
+	}
+	if g.Round != RoundEnded {
+		t.Fatalf("round = %v, want ended", g.Round)
+	}
+}
+
+func TestStandings(t *testing.T) {
+	g := testGame()
+	g.Teams[0].Score = 50
+	g.Teams[1].Score = 100
+	g.Teams[2].Score = 100
+	got := g.Standings()
+	want := []Standing{
+		{Team: 1, Rank: 1, Score: 100},
+		{Team: 2, Rank: 1, Score: 100},
+		{Team: 0, Rank: 3, Score: 50},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("standings = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("standings[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestStandingsSkipsEmptyTeams(t *testing.T) {
+	g := testGame()
+	g.Teams[3].Score = 9000
+	g.Teams[4].Score = 8000
+	got := g.Standings()
+	if len(got) != 3 {
+		t.Fatalf("standings = %+v, want 3 active teams", got)
+	}
+	for _, s := range got {
+		if s.Team == 3 || s.Team == 4 {
+			t.Fatalf("empty team in standings: %+v", s)
+		}
+	}
+}
+
+func TestStartNewGame(t *testing.T) {
+	g := boardGame(t)
+	p := mustJoin(t, g, 0, "Anna", "")
+	g.Select(0, 0)
+	g.Plus(0)
+	quiz := g.Quiz
+	if g.StartNewGame() {
+		t.Fatal("new game accepted before end")
+	}
+	g.EndGame(time.Now())
+	if !g.StartNewGame() {
+		t.Fatal("new game after end failed")
+	}
+	if g.Round != RoundBoard || g.Current != nil || g.Buzzer != BuzzerLocked || g.BuzzedBy != 0 {
+		t.Fatalf("bad new game state: %+v %v %d %v", g.Current, g.Buzzer, g.BuzzedBy, g.Round)
+	}
+	for i, team := range g.Teams {
+		if team.Score != 0 {
+			t.Fatalf("team %d score = %d, want 0", i, team.Score)
+		}
+	}
+	for ti, row := range g.Board {
+		for qi, used := range row {
+			if used {
+				t.Fatalf("cell %d,%d still used", ti, qi)
+			}
+		}
+	}
+	if len(g.ScoreLog) != 0 {
+		t.Fatalf("log = %+v, want empty", g.ScoreLog)
+	}
+	if g.Quiz != quiz {
+		t.Fatal("quiz replaced")
+	}
+	if len(g.Players) != 1 || g.Player(p.ID) != p {
+		t.Fatalf("players = %+v, want Anna kept", g.Players)
+	}
+	if g.Timer.Started || g.Timer.Running() || g.Timer.Remaining != defaultGameDuration {
+		t.Fatalf("timer = %+v", g.Timer)
+	}
+	if g.StartNewGame() {
+		t.Fatal("second new game accepted without end")
+	}
+}

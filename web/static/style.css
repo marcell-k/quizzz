@@ -351,6 +351,64 @@ body {
   cursor: default;
 }
 
+.team-row .score-edit {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: text;
+  text-align: right;
+}
+
+.team-row .score-edit:hover {
+  text-decoration: underline dotted;
+}
+
+.undo-btn {
+  width: 100%;
+  margin-top: 0.6rem;
+}
+
+.results-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.result-row {
+  display: grid;
+  grid-template-columns: 2rem auto 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.4rem;
+  background: #fff;
+  border: 1px solid #e2e2e2;
+}
+
+.result-row .dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+}
+
+.result-row .rank {
+  font-weight: 700;
+  color: #555;
+  text-align: center;
+}
+
+.result-row .tname {
+  overflow-wrap: anywhere;
+}
+
+.result-row .score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .player-list {
   margin: 0;
   padding-left: 1.1rem;
@@ -567,6 +625,59 @@ body.display-page {
 
 .display-team .score {
   font-size: clamp(1.2rem, 2vw, 2.3rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.display-results {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+}
+
+.display-result-list {
+  display: flex;
+  width: min(70rem, 92vw);
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.display-result {
+  display: grid;
+  grid-template-columns: 3rem auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid #d8d4cc;
+  border-radius: 0.6rem;
+  background: #fff;
+}
+
+.display-result .rank {
+  font-size: clamp(1.4rem, 2.3vw, 2.6rem);
+  font-weight: 700;
+  color: #555;
+  text-align: center;
+}
+
+.display-result .dot {
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+}
+
+.display-result .name {
+  overflow-wrap: anywhere;
+  font-size: clamp(1.4rem, 2.4vw, 2.7rem);
+  font-weight: 700;
+}
+
+.display-result .score {
+  font-size: clamp(1.5rem, 2.6vw, 3rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }

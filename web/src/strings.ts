@@ -53,6 +53,11 @@ export const t = {
   gameTime: "Játékidő",
   pauseTimer: "Szünet",
   resumeTimer: "Folytatás",
+  results: "Eredmény",
+  undo: "Visszavonás",
+  newGame: "Új játék",
+  editScore: "Pontszám szerkesztése",
+  confirmNewGame: "Biztosan új játékot indítasz? A pontszámok nullázódnak.",
 } as const;
 
 const errors: Record<string, string> = {
@@ -73,6 +78,8 @@ const errors: Record<string, string> = {
   load_failed: "A feladatsor betöltése nem sikerült.",
   no_buzz: "Nincs jelentkezés.",
   bad_round: "Hibás kör.",
+  nothing_to_undo: "Nincs visszavonható pontváltozás.",
+  bad_score: "Hibás pontszám.",
 };
 
 export function errorText(code: string): string {

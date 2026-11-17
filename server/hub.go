@@ -30,6 +30,7 @@ type inMsg struct {
 	Q      int    `json:"q"`
 	File   string `json:"file"`
 	Action string `json:"action"`
+	Value  int    `json:"value"`
 }
 
 type statePlayer struct {
@@ -60,6 +61,12 @@ type stateCurrent struct {
 	Image    string `json:"image"`
 }
 
+type stateResult struct {
+	Team  int `json:"team"`
+	Rank  int `json:"rank"`
+	Score int `json:"score"`
+}
+
 type stateMsg struct {
 	Type     string        `json:"type"`
 	Teams    []stateTeam   `json:"teams"`
@@ -72,6 +79,9 @@ type stateMsg struct {
 	Used     [][]bool      `json:"used"`
 	Current  *stateCurrent `json:"current"`
 	Timer    stateTimer    `json:"timer"`
+
+	UndoCount int           `json:"undoCount"`
+	Results   []stateResult `json:"results"`
 
 	LightningPoints int    `json:"lightningPoints"`
 	LightningImage  string `json:"lightningImage"`
@@ -245,6 +255,15 @@ func (h *Hub) stateJSON() []byte {
 		}
 	}
 
+	var results []stateResult
+	if g.Round == RoundEnded {
+		standings := g.Standings()
+		results = make([]stateResult, 0, len(standings))
+		for _, s := range standings {
+			results = append(results, stateResult{Team: s.Team, Rank: s.Rank, Score: s.Score})
+		}
+	}
+
 	return mustJSON(stateMsg{
 		Type:     "state",
 		Teams:    ts,
@@ -257,6 +276,9 @@ func (h *Hub) stateJSON() []byte {
 		Used:     used,
 		Current:  current,
 		Timer:    timerState(g.Timer, now),
+
+		UndoCount: len(g.ScoreLog),
+		Results:   results,
 
 		LightningPoints: g.LightningPoints,
 		LightningImage:  lightningImage,
@@ -351,6 +373,29 @@ func (h *Hub) handle(c *client, data []byte) {
 			return
 		}
 		h.onScore(c, m.Team, -1)
+	case "set_score":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		h.onSetScore(c, m.Team, m.Value)
+	case "undo":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		h.onUndo(c)
+	case "new_game":
+		if !c.admin {
+			h.sendError(c, "forbidden")
+			return
+		}
+		if !h.game.StartNewGame() {
+			h.sendError(c, "bad_round")
+			return
+		}
+		log.Printf("new game")
+		h.broadcastState()
 	case "none":
 		if !c.admin {
 			h.sendError(c, "forbidden")
@@ -434,6 +479,25 @@ func (h *Hub) onScore(c *client, team, sign int) {
 		return
 	}
 	log.Printf("score %+d: %s -> %d", sign*points, h.teamName(team), h.game.Teams[team].Score)
+	h.broadcastState()
+}
+
+func (h *Hub) onSetScore(c *client, team, value int) {
+	if !h.game.SetScore(team, value) {
+		h.sendError(c, "bad_team")
+		return
+	}
+	log.Printf("score set: %s -> %d", h.teamName(team), h.game.Teams[team].Score)
+	h.broadcastState()
+}
+
+func (h *Hub) onUndo(c *client) {
+	change, ok := h.game.Undo()
+	if !ok {
+		h.sendError(c, "nothing_to_undo")
+		return
+	}
+	log.Printf("undo: %s %+d -> %d", h.teamName(change.Team), -change.Delta, h.game.Teams[change.Team].Score)
 	h.broadcastState()
 }
 

@@ -143,9 +143,23 @@ function renderLightning(m: StateMsg): void {
   main.replaceChildren(box);
 }
 
-function renderEnded(): void {
-  const box = el("div", "display-question");
-  box.append(el("h1", "display-title", t.gameEnded));
+function renderEnded(m: StateMsg): void {
+  const box = el("div", "display-results");
+  box.append(el("h1", "display-title", t.results));
+  const list = el("div", "display-result-list");
+  for (const r of m.results ?? []) {
+    const row = el("div", "display-result");
+    const dot = el("span", "dot");
+    dot.style.background = teamColor(r.team);
+    row.append(
+      el("span", "rank", String(r.rank)),
+      dot,
+      el("span", "name", m.teams[r.team]?.name ?? "?"),
+      el("span", "score", fmt(r.score)),
+    );
+    list.append(row);
+  }
+  box.append(list);
   main.replaceChildren(box);
 }
 
@@ -159,7 +173,7 @@ function render(m: StateMsg): void {
 
   switch (m.round) {
     case "ended":
-      renderEnded();
+      renderEnded(m);
       break;
     case "lightning":
       renderLightning(m);

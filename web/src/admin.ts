@@ -62,7 +62,14 @@ const actions = el("div", "actions");
 actions.append(noneBtn, cancelBtn);
 
 const teamList = el("div", "team-list-admin");
+const undoBtn = el("button", "btn undo-btn", t.undo);
+undoBtn.disabled = true;
 const playerList = el("ul", "player-list");
+
+const resultsList = el("div", "results-admin");
+const newGameBtn = el("button", "btn", t.newGame);
+const resultsPanel = panel(t.results, resultsList, newGameBtn);
+resultsPanel.classList.add("wide", "hidden");
 
 const timerClock = el("p", "timer-clock", "00:00");
 const timerBtn = el("button", "btn timer-btn", t.pauseTimer);
@@ -77,7 +84,7 @@ const boardPanel = panel(t.board, noQuiz, board);
 boardPanel.classList.add("wide");
 const questionPanel = panel(t.currentQuestion, qBox, actions, opMsg);
 questionPanel.classList.add("wide");
-const teamsPanel = panel(t.teams, teamList);
+const teamsPanel = panel(t.teams, teamList, undoBtn);
 teamsPanel.classList.add("wide");
 
 const grid = el("div", "admin");
@@ -88,6 +95,7 @@ grid.append(
   panel(t.gameFlow, startLightningBtn, endGameBtn),
   boardPanel,
   questionPanel,
+  resultsPanel,
   teamsPanel,
   panel(t.players, playerList),
 );
@@ -198,6 +206,19 @@ function renderBoard(m: StateMsg): void {
   board.replaceChildren(...cells);
 }
 
+function editScore(team: number, name: string, current: number): void {
+  const raw = prompt(`${t.editScore}: ${name}`, String(current));
+  if (raw === null) return;
+  const text = raw.trim();
+  if (!/^-?\d+$/.test(text) || !Number.isSafeInteger(Number(text))) {
+    opMsg.textContent = errorText("bad_score");
+    return;
+  }
+  const value = Number(text);
+  opMsg.textContent = "";
+  if (value !== current) conn.send({ type: "set_score", team, value });
+}
+
 function renderTeams(m: StateMsg): void {
   const rows: HTMLElement[] = [];
   m.teams.forEach((team, i) => {
@@ -219,10 +240,35 @@ function renderTeams(m: StateMsg): void {
       opMsg.textContent = "";
       conn.send({ type: "minus", team: i });
     };
-    row.append(dot, el("span", "tname", team.name), el("span", "score", fmt(team.score)), plus, minus);
+    const score = el("button", "score score-edit", fmt(team.score));
+    score.type = "button";
+    score.title = t.editScore;
+    score.onclick = () => {
+      opMsg.textContent = "";
+      editScore(i, team.name, team.score);
+    };
+    row.append(dot, el("span", "tname", team.name), score, plus, minus);
     rows.push(row);
   });
   teamList.replaceChildren(...rows);
+}
+
+function renderResults(m: StateMsg): void {
+  const results = m.results ?? [];
+  resultsList.replaceChildren(
+    ...results.map((r) => {
+      const row = el("div", "result-row");
+      const dot = el("span", "dot");
+      dot.style.background = teamColor(r.team);
+      row.append(
+        el("span", "rank", String(r.rank)),
+        dot,
+        el("span", "tname", m.teams[r.team]?.name ?? "?"),
+        el("span", "score", fmt(r.score)),
+      );
+      return row;
+    }),
+  );
 }
 
 function renderPlayers(m: StateMsg): void {
@@ -248,8 +294,13 @@ function render(m: StateMsg): void {
   cancelBtn.disabled = m.buzzer !== "buzzed";
   startLightningBtn.disabled = m.round !== "board";
   endGameBtn.disabled = m.round === "ended";
+  undoBtn.disabled = m.undoCount === 0;
+  undoBtn.textContent = m.undoCount > 0 ? `${t.undo} (${m.undoCount})` : t.undo;
+  resultsPanel.classList.toggle("hidden", m.round !== "ended");
+  newGameBtn.disabled = m.round !== "ended";
   renderBoard(m);
   renderQuestion(m);
+  renderResults(m);
   renderTeams(m);
   renderPlayers(m);
 }
@@ -362,6 +413,17 @@ endGameBtn.onclick = () => {
   opMsg.textContent = "";
   if (!confirm(t.confirmEndGame)) return;
   conn.send({ type: "end_game" });
+};
+
+undoBtn.onclick = () => {
+  opMsg.textContent = "";
+  conn.send({ type: "undo" });
+};
+
+newGameBtn.onclick = () => {
+  opMsg.textContent = "";
+  if (!confirm(t.confirmNewGame)) return;
+  conn.send({ type: "new_game" });
 };
 
 startTick(renderTimer);
