@@ -84,6 +84,19 @@ export const t = {
   resumeNew: "Új játék",
   resumeBroken: "A mentett játék nem olvasható, új játék indul.",
   resumeQuizMissing: "A mentett feladatsor nem található, új játék indul.",
+
+  // Help page
+  helpQuickStart: "Gyors indítás",
+  helpQuizFormat: "Feladatsor formátuma",
+  helpImages: "Képek",
+  helpLook: "Kinézet és logó",
+  helpSettings: "Beállítások",
+  helpGameFlow: "Játék menete",
+  helpNetwork: "Hálózat",
+  helpFiles: "Fájlok a program mellett",
+  helpDefault: "Alapértelmezés",
+  helpSetting: "Beállítás",
+  helpMeaning: "Jelentés",
 } as const;
 
 const errors: Record<string, string> = {

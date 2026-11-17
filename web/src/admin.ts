@@ -65,6 +65,8 @@ const buzzerLabels: Record<BuzzerState, string> = {
 // ---- DOM ----
 
 const h1 = el("h1", "", `${t.appTitle}: ${t.admin}`);
+const helpLink = el("a", "link", t.help);
+helpLink.href = "/help";
 const status = el("p", "status");
 const connEl = el("p", "conn");
 const url = el("p", "hint");
@@ -222,7 +224,7 @@ grid.append(
   panel(t.players, playerList),
 );
 const head = el("div", "admin-head");
-head.append(logo(), h1, connEl);
+head.append(logo(), h1, helpLink, connEl);
 document.body.replaceChildren(head, resumePanel, grid);
 
 // ---- state ----

@@ -196,12 +196,112 @@ body {
   color: #b00;
 }
 
-.help {
-  margin: 0.8rem 0 0;
-  font-family: var(--font);
-  font-size: 1rem;
+/* ---- help page ---- */
+
+.help-page {
+  max-width: 62rem;
+  margin: 0 auto;
+}
+
+.help-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.help-head h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.help-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.2rem;
+  margin: 0 0 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.help-section {
+  margin-bottom: 0.8rem;
+  background: #fff;
+}
+
+.help-page p {
+  margin: 0.4rem 0;
   line-height: 1.5;
-  white-space: pre-wrap;
+}
+
+.help-page ul,
+.help-page ol {
+  margin: 0.4rem 0;
+  padding-left: 1.4rem;
+  line-height: 1.55;
+}
+
+.help-page li + li {
+  margin-top: 0.25rem;
+}
+
+.help-page code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.help-page p code,
+.help-page li code,
+.help-page td code {
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  background: #f0f0f0;
+}
+
+.help-page pre {
+  margin: 0.6rem 0;
+  padding: 0.7rem 0.8rem;
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  border-radius: 0.5rem;
+  background: #f6f6f6;
+  line-height: 1.45;
+}
+
+.help-page pre code {
+  padding: 0;
+  background: none;
+  font-size: 0.86rem;
+  white-space: pre;
+}
+
+.help-page table {
+  width: 100%;
+  margin: 0.5rem 0;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.help-page th,
+.help-page td {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #ddd;
+  text-align: left;
+  vertical-align: top;
+}
+
+.help-page th {
+  background: #f0f0f0;
+  font-weight: 600;
+}
+
+.help-page h3 {
+  margin: 1rem 0 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #666;
 }
 
 /* ---- admin page ---- */
