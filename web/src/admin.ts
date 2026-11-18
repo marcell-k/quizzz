@@ -79,12 +79,19 @@ function playersWidget(): PlayersWidget {
 
 // ---- header ----
 
-const h1 = el("h1", "", `${t.appTitle}: ${t.admin}`);
+const h1 = el("h1", "", t.appTitle);
 const helpLink = el("a", "link", t.help);
 helpLink.href = "/help";
 const connEl = el("p", "conn");
+const urlText = el("span", "join-url");
+const copyBtn = el("button", "link", t.copy);
+copyBtn.type = "button";
+const urlRow = el("div", "url-row hidden");
+urlRow.append(urlText, copyBtn);
+const connBox = el("div", "conn-box");
+connBox.append(connEl, urlRow);
 const head = el("div", "admin-head");
-head.append(logo(), h1, helpLink, connEl);
+head.append(logo(), h1, helpLink, connBox);
 
 const resumeText = el("p", "status");
 const resumeContinueBtn = el("button", "btn", t.resumeContinue);
@@ -97,26 +104,11 @@ resumePanel.append(resumeText, resumeActions);
 // ---- setup view: 1 join, 2 quiz, 3 settings, sticky start bar ----
 
 const joinCount = el("p", "status");
-const joinTeams = el("div", "join-teams");
 const setupPlayers = playersWidget();
-const joinPanel = panel(`1 · ${t.joinStep}`, joinCount, joinTeams, setupPlayers.root);
-
-const quizSel = el("select");
-const loadBtn = el("button", "btn", t.loadQuiz);
-const quizStatus = el("p", "hint", t.noQuiz);
-const quizMsg = el("p", "err");
-quizSel.disabled = true;
-loadBtn.disabled = true;
-const quizRow = el("div", "quiz-row");
-quizRow.append(quizSel, loadBtn);
-const quizPanel = panel(`2 · ${t.quizFile}`, quizRow, quizStatus, quizMsg);
-
-const setTitle = el("input");
-setTitle.type = "text";
-setTitle.maxLength = 80;
-setTitle.autocomplete = "off";
-
 const maxTeams = 10;
+const minTeams = 2;
+let teamCount = minTeams;
+
 const teamInputs = Array.from({ length: maxTeams }, () => {
   const i = el("input");
   i.type = "text";
@@ -124,6 +116,50 @@ const teamInputs = Array.from({ length: maxTeams }, () => {
   i.autocomplete = "off";
   return i;
 });
+const teamRows = teamInputs.map((input, i) => {
+  const row = el("div", "join-row");
+  const dot = el("span", "dot");
+  dot.style.background = teamColor(i);
+  const count = el("span", "join-count", "0/0");
+  row.append(dot, input, count);
+  return { row, count };
+});
+const joinTeams = el("div", "join-teams");
+joinTeams.append(...teamRows.map((r) => r.row));
+
+const teamMinus = el("button", "step-btn", "−");
+teamMinus.type = "button";
+const teamPlus = el("button", "step-btn", "+");
+teamPlus.type = "button";
+const teamNum = el("span", "step-num", String(teamCount));
+const teamHead = el("div", "team-head");
+teamHead.append(el("h3", "", t.teamNames), teamMinus, teamNum, teamPlus);
+
+function showTeamRows(count: number): void {
+  teamCount = count;
+  teamRows.forEach((r, i) => r.row.classList.toggle("hidden", i >= count));
+  teamNum.textContent = String(count);
+  teamMinus.disabled = count <= minTeams;
+  teamPlus.disabled = count >= maxTeams;
+}
+showTeamRows(teamCount);
+const joinPanel = panel(`1 · ${t.joinStep}`, joinCount, teamHead, joinTeams, setupPlayers.root);
+
+const quizSel = el("select");
+const loadBtn = el("button", "btn", t.loadQuiz);
+const quizStatus = el("p", "hint", t.noQuiz);
+const quizMsg = el("p", "err");
+const topicList = el("ol", "topic-list");
+quizSel.disabled = true;
+loadBtn.disabled = true;
+const quizRow = el("div", "quiz-row");
+quizRow.append(quizSel, loadBtn);
+const quizPanel = panel(`2 · ${t.quizFile}`, quizRow, quizStatus, quizMsg, topicList);
+
+const setTitle = el("input");
+setTitle.type = "text";
+setTitle.maxLength = 80;
+setTitle.autocomplete = "off";
 
 const gameMin = numInput(1, 600);
 const lightMin = numInput(0, 600);
@@ -150,23 +186,6 @@ const ruleLockout = checkRow(t.ruleLockoutTeam);
 const ruleSubtract = checkRow(t.ruleSubtractPoints);
 const ruleAuto = checkRow(t.ruleAutoOpen);
 
-const teamFields = teamInputs.map((input, i) => field(`${t.team} ${i + 1}`, input));
-const namesRow = el("div", "team-names");
-namesRow.append(...teamFields);
-
-const teamCountSel = el("select");
-for (let n = 2; n <= 10; n++) {
-  const o = el("option", "", String(n));
-  o.value = String(n);
-  teamCountSel.appendChild(o);
-}
-const teamCountRow = el("div", "size-row");
-teamCountRow.append(field(t.teamCount, teamCountSel));
-
-function showTeamFields(count: number): void {
-  teamFields.forEach((f, i) => f.classList.toggle("hidden", i >= count));
-}
-
 const checks = el("div", "checks");
 checks.append(ruleReopen.row, ruleLockout.row, ruleSubtract.row, ruleAuto.row);
 
@@ -185,22 +204,16 @@ sizeRow.append(
   el("p", "hint", t.boardSizeHint),
 );
 
-const settingsLeft = el("div");
-settingsLeft.append(
-  el("h3", "", t.teamNames),
-  teamCountRow,
-  namesRow,
+const settingsPanel = panel(
+  `3 · ${t.settings}`,
+  settingsGrid,
   el("h3", "", t.boardSize),
   sizeRow,
   el("h3", "", t.questionPoints),
   pointsRow,
+  el("h3", "", t.rules),
+  checks,
 );
-const settingsRight = el("div");
-settingsRight.append(el("h3", "", t.rules), checks);
-const settingsCols = el("div", "settings-cols");
-settingsCols.append(settingsLeft, settingsRight);
-
-const settingsPanel = panel(`3 · ${t.settings}`, settingsGrid, settingsCols);
 
 const checkQuiz = el("span", "check-item");
 const checkPlayers = el("span", "check-item");
@@ -211,10 +224,10 @@ startGameBtn.disabled = true;
 const setupBar = el("div", "bar bar-bottom");
 setupBar.append(barInfo, startGameBtn);
 
-const setupTop = el("div", "admin-top");
-setupTop.append(joinPanel, quizPanel);
-const setupView = el("div", "admin-view");
-setupView.append(setupTop, settingsPanel, setupBar);
+const setupCols = el("div", "setup-cols");
+setupCols.append(joinPanel, quizPanel, settingsPanel);
+const setupView = el("div", "admin-view setup-view");
+setupView.append(setupCols, setupBar);
 
 // ---- game view: top bar, board + teams, sticky question bar ----
 
@@ -257,7 +270,9 @@ const teamsPanel = panel(t.teams, teamList, gamePlayers.root);
 const gameMain = el("div", "game-main");
 gameMain.append(gameLeft, teamsPanel);
 
+const buzzDot = el("span", "buzz-dot");
 const buzzStatus = el("p", "buzz-status locked");
+buzzStatus.append(buzzDot);
 const qBox = el("div", "qbox");
 const opMsg = el("p", "err");
 const noneBtn = el("button", "btn", t.noAnswer);
@@ -269,18 +284,18 @@ openBtn.disabled = true;
 const actions = el("div", "actions");
 actions.append(noneBtn, cancelBtn, openBtn);
 const qinfo = el("div", "qinfo");
-qinfo.append(buzzStatus, qBox, opMsg);
+qinfo.append(qBox, opMsg);
 const qbar = el("div", "bar bar-bottom qbar");
 qbar.append(qinfo, actions);
 
 const gameView = el("div", "admin-view hidden");
 gameView.append(topbar, gameMain, qbar);
 
+document.body.classList.add("admin-page");
 document.body.replaceChildren(head, resumePanel, setupView, gameView);
 
 // ---- state ----
 
-let peekFor = "";
 let loadPending = false;
 let timerState: TimerInfo | null = null;
 let currentRound: Round = "setup";
@@ -318,7 +333,7 @@ function renderSettings(s: Settings): void {
   if (
     ae instanceof HTMLInputElement &&
     (ae.type === "text" || ae.type === "number") &&
-    settingsPanel.contains(ae)
+    (settingsPanel.contains(ae) || joinTeams.contains(ae))
   ) {
     return;
   }
@@ -327,12 +342,11 @@ function renderSettings(s: Settings): void {
     const input = teamInputs[i];
     if (input) input.value = name;
   });
-  let count = 2;
+  let count = minTeams;
   s.teams.forEach((name, i) => {
     if (name !== "") count = Math.max(count, i + 1);
   });
-  teamCountSel.value = String(count);
-  showTeamFields(count);
+  showTeamRows(count);
   gameMin.value = String(s.gameMinutes);
   lightMin.value = String(s.lightningMinutes);
   lightningPts.value = String(s.lightningPoints);
@@ -344,7 +358,7 @@ function renderSettings(s: Settings): void {
   ruleSubtract.input.checked = s.rules.subtractPoints;
   ruleAuto.input.checked = s.rules.autoOpen;
   renderPoints(s.points);
-  h1.textContent = `${s.title}: ${t.admin}`;
+  h1.textContent = s.title;
 }
 
 function readSettings(): Settings | null {
@@ -368,9 +382,7 @@ function readSettings(): Settings | null {
   }
   return {
     title: setTitle.value.trim(),
-	teams: teamInputs.map((input, i) =>
-      i < Number(teamCountSel.value) ? input.value.trim() : "",
-    ),
+    teams: teamInputs.map((input, i) => (i < teamCount ? input.value.trim() : "")),
     topics,
     questions,
     points,
@@ -421,10 +433,16 @@ function renderTimer(): void {
   timerBtn.textContent = timerState.paused ? t.resumeTimer : t.pauseTimer;
 }
 
+function questionHead(meta: string): HTMLElement {
+  const row = el("div", "qhead");
+  row.append(buzzStatus, el("span", "qmeta", meta));
+  return row;
+}
+
 function renderQuestion(m: StateMsg): void {
   if (m.round === "lightning") {
     qBox.replaceChildren(
-      el("p", "qmeta", `${t.lightningTitle} · ${fmt(m.lightningPoints)}`),
+      questionHead(`${t.lightningTitle} · ${fmt(m.lightningPoints)}`),
       el("p", "hint", t.lightningHint),
     );
     return;
@@ -435,29 +453,13 @@ function renderQuestion(m: StateMsg): void {
   }
   const cur = m.current;
   if (!cur) {
-    qBox.replaceChildren(el("p", "hint", t.noCurrent));
+    qBox.replaceChildren(questionHead(t.noCurrent));
     return;
   }
-  const key = `${cur.topic}:${cur.q}`;
   const parts: HTMLElement[] = [
-    el("p", "qmeta", `${m.topics[cur.topic] ?? "?"} · ${fmt(cur.points)}`),
+    questionHead(`${m.topics[cur.topic] ?? "?"} · ${fmt(cur.points)}`),
+    el("p", "qtext", cur.text),
   ];
-  if (peekFor === key) {
-    parts.push(el("p", "qtext", cur.text));
-    const hide = el("button", "link", t.hide);
-    hide.onclick = () => {
-      peekFor = "";
-      renderQuestion(m);
-    };
-    parts.push(hide);
-  } else {
-    const peek = el("button", "btn peek", t.peek);
-    peek.onclick = () => {
-      peekFor = key;
-      renderQuestion(m);
-    };
-    parts.push(peek);
-  }
   if (cur.hasImage) parts.push(el("p", "hint", t.image));
   qBox.replaceChildren(...parts);
 }
@@ -576,18 +578,11 @@ function renderPlayers(m: StateMsg): void {
 
   const online = m.players.filter((p) => p.online).length;
   joinCount.textContent = `${t.players}: ${online}`;
-  const rows: HTMLElement[] = [];
-  m.teams.forEach((team, i) => {
-    if (team.name === "") return;
+  teamRows.forEach((r, i) => {
     const mine = m.players.filter((p) => p.team === i);
     const on = mine.filter((p) => p.online).length;
-    const row = el("div", "join-row");
-    const dot = el("span", "dot");
-    dot.style.background = teamColor(i);
-    row.append(dot, el("span", "tname", team.name), el("span", "join-count", `${on}/${mine.length}`));
-    rows.push(row);
+    r.count.textContent = `${on}/${mine.length}`;
   });
-  joinTeams.replaceChildren(...rows);
 }
 
 function resumePrompt(warning: string): string {
@@ -620,6 +615,8 @@ function renderSetupBar(m: StateMsg): void {
   startGameBtn.disabled = m.round !== "setup" || !hasQuiz;
   startGameBtn.title = hasQuiz ? "" : t.startNeedsQuiz;
 
+  topicList.replaceChildren(...m.topics.map((name) => el("li", "", name)));
+
   if (hasQuiz) {
     const file = m.settings.lastQuiz;
     quizStatus.textContent = `✓ ${t.loaded}${file ? `: ${file}` : ""} — ${m.topics.length} ${t.topicsUnit} × ${m.points.length} ${t.questionsUnit}`;
@@ -649,11 +646,13 @@ function render(m: StateMsg): void {
   renderSetupBar(m);
 
   const by = m.players.find((p) => p.id === m.buzzedBy);
-  buzzStatus.className = `buzz-status ${m.buzzer}`;
-  buzzStatus.style.background = by ? teamColor(by.team) : "";
-  buzzStatus.textContent = by
+  const buzzText = by
     ? `${t.buzzer}: ${buzzerLabels[m.buzzer]} — ${m.teams[by.team]?.name ?? "?"}: ${by.name}`
     : `${t.buzzer}: ${buzzerLabels[m.buzzer]}`;
+  buzzStatus.className = `buzz-status ${m.buzzer}`;
+  buzzStatus.title = buzzText;
+  buzzStatus.setAttribute("aria-label", buzzText);
+  buzzDot.style.background = by ? teamColor(by.team) : "";
 
   noneBtn.disabled = m.current === null;
   cancelBtn.disabled = m.buzzer !== "buzzed";
@@ -721,6 +720,30 @@ fetch("/api/quizzes")
   .then(fillQuizzes)
   .catch(() => fillQuizzes([]));
 
+fetch("/info")
+  .then((r) => {
+    if (!r.ok) throw new Error(String(r.status));
+    return r.text();
+  })
+  .then((u) => {
+    urlText.textContent = u;
+    urlRow.classList.remove("hidden");
+  })
+  .catch(() => urlRow.classList.add("hidden"));
+
+copyBtn.onclick = () => {
+  navigator.clipboard
+    .writeText(urlText.textContent ?? "")
+    .then(() => {
+      copyBtn.textContent = t.copied;
+      setTimeout(() => {
+        copyBtn.textContent = t.copy;
+      }, 1200);
+    })
+    .catch(() => {
+      /* clipboard blocked */
+    });
+};
 // ---- actions ----
 
 const conn = connect(
@@ -736,16 +759,7 @@ const conn = connect(
   },
 );
 
-teamCountSel.addEventListener("change", () => {
-  const count = Number(teamCountSel.value);
-  showTeamFields(count);
-  teamInputs.forEach((input, i) => {
-    if (i < count && input.value.trim() === "") {
-      input.value = `${String.fromCharCode(65 + i)} csapat`;
-    }
-  });
-});
-settingsPanel.addEventListener("change", () => {
+function commitSettings(): void {
   ruleLockout.input.disabled = !ruleReopen.input.checked;
   const settings = readSettings();
   if (!settings) {
@@ -755,7 +769,27 @@ settingsPanel.addEventListener("change", () => {
   }
   quizMsg.textContent = "";
   conn.send({ type: "setup", settings });
-});
+}
+settingsPanel.addEventListener("change", commitSettings);
+joinTeams.addEventListener("change", commitSettings);
+
+teamPlus.onclick = () => {
+  if (teamCount >= maxTeams) return;
+  const input = teamInputs[teamCount];
+  if (input && input.value.trim() === "") {
+    input.value = `${String.fromCharCode(65 + teamCount)} csapat`;
+  }
+  showTeamRows(teamCount + 1);
+  commitSettings();
+};
+
+teamMinus.onclick = () => {
+  if (teamCount <= minTeams) return;
+  const last = teamCount - 1;
+  if (lastState?.players.some((p) => p.team === last) && !confirm(t.confirmRemoveTeam)) return;
+  showTeamRows(teamCount - 1);
+  commitSettings();
+};
 
 startGameBtn.onclick = () => {
   quizMsg.textContent = "";
