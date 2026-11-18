@@ -1087,17 +1087,6 @@ body.display-page {
   font-variant-numeric: tabular-nums;
 }
 
-.display-qr {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  width: clamp(90px, 10vw, 160px);
-  padding: 0.4rem;
-  border-radius: 0.4rem;
-  background: #fff;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
-}
-
 .display-head {
   display: flex;
   flex: 0 0 8vh;
@@ -1213,12 +1202,15 @@ body.display-page {
 }
 
 .display-qr {
-  align-self: center;
-  width: 100%;
+  display: block;
+  width: auto;
+  height: min(52vh, 40vw, 34rem);
+  max-width: 100%;
   box-sizing: border-box;
-  padding: 0.4rem;
-  border-radius: 0.4rem;
+  padding: 0.6rem;
+  border-radius: 0.5rem;
   background: #fff;
+  object-fit: contain;
   box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
 }
 

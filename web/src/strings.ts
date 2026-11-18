@@ -6,7 +6,7 @@ export const t = {
   help: "Súgó",
   connected: "Kapcsolódva",
   disconnected: "Nincs kapcsolat",
-  scanToJoin: "Olvasd be a QR-kódot",
+  // scanToJoin: "Olvasd be a QR-kódot",
   name: "Név",
   join: "Csatlakozás",
   buzz: "JELENTKEZEM",

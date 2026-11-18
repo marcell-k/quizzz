@@ -39,7 +39,7 @@ qr.src = "/qr.png";
 qr.alt = "";
 
 const side = el("aside", "display-side");
-side.append(timerCard, teams, qr);
+side.append(timerCard, teams);
 
 const body = el("div", "display-body");
 body.append(main, side);
@@ -185,7 +185,7 @@ function renderSetup(m: StateMsg): void {
   const box = el("div", "display-question");
   const online = m.players.filter((p) => p.online).length;
   box.append(
-    el("h1", "display-title", t.scanToJoin),
+    qr,
     el("p", "display-qmeta", `${t.players}: ${online}`),
   );
   main.replaceChildren(box);
@@ -218,11 +218,9 @@ function render(m: StateMsg): void {
   renderTimer();
   renderTeams(m);
 
-  // setup: QR takes the sidebar slot. Other rounds: clock + teams.
+  // setup: QR is centered in the main area, sidebar hidden. Other rounds: clock + teams.
   const setup = m.round === "setup";
-  timerCard.classList.toggle("hidden", setup);
-  teams.classList.toggle("hidden", setup);
-  qr.classList.toggle("hidden", !setup);
+  side.classList.toggle("hidden", setup);
 
   switch (m.round) {
     case "setup":
