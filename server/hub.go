@@ -630,14 +630,35 @@ func (h *Hub) onUndo(c *client) {
 }
 
 func (h *Hub) onSetup(st Settings) {
-	if h.game.ApplySettings(st) {
+	unloaded, removedPlayers := h.game.ApplySettings(st)
+	if unloaded {
 		log.Printf("board size changed, loaded quiz unloaded")
 	}
+	h.kickPlayers(removedPlayers)
 	if err := SaveSettings(h.settingsPath, h.game.Settings); err != nil {
 		log.Printf("settings save: %v", err)
 	}
 	log.Printf("settings: %dx%d board, %d+%d min", h.game.Settings.Topics, h.game.Settings.Questions, h.game.Settings.GameMinutes, h.game.Settings.LightningMinutes)
 	h.broadcastState()
+}
+
+// kickPlayers sends live clients of deleted players back to the team picker.
+// The connection stays open, so they can join another team right away.
+func (h *Hub) kickPlayers(ids []int) {
+	if len(ids) == 0 {
+		return
+	}
+	gone := make(map[int]bool, len(ids))
+	for _, id := range ids {
+		gone[id] = true
+	}
+	for c := range h.clients {
+		if c.playerID != 0 && gone[c.playerID] {
+			log.Printf("player removed with team: id=%d", c.playerID)
+			c.playerID = 0
+			h.sendTo(c, mustJSON(plainMsg{Type: "kicked"}))
+		}
+	}
 }
 
 func (h *Hub) onResume(c *client) {

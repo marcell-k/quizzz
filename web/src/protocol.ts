@@ -121,5 +121,6 @@ export type StateMsg = {
 };
 export type JoinedMsg = { type: "joined"; id: number; token: string; team: number; name: string };
 export type TooLateMsg = { type: "too_late" };
+export type KickedMsg = { type: "kicked" };
 export type ErrorMsg = { type: "error"; msg: string };
-export type ServerMsg = StateMsg | JoinedMsg | TooLateMsg | ErrorMsg;
+export type ServerMsg = StateMsg | JoinedMsg | TooLateMsg | KickedMsg | ErrorMsg;

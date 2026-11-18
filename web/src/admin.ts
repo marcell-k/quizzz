@@ -271,8 +271,9 @@ const gameMain = el("div", "game-main");
 gameMain.append(gameLeft, teamsPanel);
 
 const buzzDot = el("span", "buzz-dot");
+const buzzName = el("span", "buzz-name");
 const buzzStatus = el("p", "buzz-status locked");
-buzzStatus.append(buzzDot);
+buzzStatus.append(buzzDot, buzzName);
 const qBox = el("div", "qbox");
 const opMsg = el("p", "err");
 const noneBtn = el("button", "btn", t.noAnswer);
@@ -652,6 +653,9 @@ function render(m: StateMsg): void {
   buzzStatus.className = `buzz-status ${m.buzzer}`;
   buzzStatus.title = buzzText;
   buzzStatus.setAttribute("aria-label", buzzText);
+  buzzName.textContent = by
+    ? `${m.teams[by.team]?.name ?? "?"}: ${by.name}`
+    : buzzerLabels[m.buzzer];
   buzzDot.style.background = by ? teamColor(by.team) : "";
 
   noneBtn.disabled = m.current === null;
@@ -771,7 +775,19 @@ function commitSettings(): void {
   conn.send({ type: "setup", settings });
 }
 settingsPanel.addEventListener("change", commitSettings);
-joinTeams.addEventListener("change", commitSettings);
+joinTeams.addEventListener("change", (e) => {
+  const input = e.target;
+  if (input instanceof HTMLInputElement && input.value.trim() === "") {
+    const i = teamInputs.indexOf(input);
+    const hadName = (lastState?.teams[i]?.name ?? "") !== "";
+    const hasPlayers = lastState?.players.some((p) => p.team === i) ?? false;
+    if (hadName && hasPlayers && !confirm(t.confirmRemoveTeam)) {
+      if (lastState) input.value = lastState.teams[i]?.name ?? "";
+      return;
+    }
+  }
+  commitSettings();
+});
 
 teamPlus.onclick = () => {
   if (teamCount >= maxTeams) return;

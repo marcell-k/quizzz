@@ -220,7 +220,7 @@ func (g *Game) RestoreState(sv savedState, quiz *Quiz) error {
 	g.Players = nil
 	g.nextID = 1
 	for _, sp := range sv.Players {
-		if sp.ID <= 0 || sp.Team < 0 || sp.Team >= len(sv.Teams) || sp.Team >= len(g.Teams) {
+		if sp.ID <= 0 || sp.Team < 0 || sp.Team >= len(sv.Teams) || sp.Team >= len(g.Teams) || g.Teams[sp.Team].Name == "" {
 			continue
 		}
 		name := strings.TrimSpace(sp.Name)

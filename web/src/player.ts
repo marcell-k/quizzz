@@ -61,10 +61,13 @@ pickLabel.className = "label";
 pickLabel.textContent = t.pickTeam;
 const teamList = document.createElement("div");
 teamList.className = "team-list";
+const teamNotice = document.createElement("p");
+teamNotice.className = "hint hidden";
+teamNotice.textContent = t.teamRemoved;
 const noTeams = document.createElement("p");
 noTeams.className = "hint hidden";
 noTeams.textContent = t.noTeams;
-viewTeam.append(pickLabel, teamList, noTeams);
+viewTeam.append(pickLabel, teamNotice, teamList, noTeams);
 
 const viewName = document.createElement("section");
 viewName.className = "view hidden";
@@ -165,12 +168,29 @@ function renderTeams(): void {
       b.onclick = () => {
         selectedTeam = i;
         joinErr.textContent = "";
+        teamNotice.classList.add("hidden");
         show("name");
         nameIn.focus();
       };
       return b;
     }),
   );
+}
+
+// leaveTeam drops the local identity after the teacher removed the team.
+// The server already forgot the player; the phone returns to the team picker.
+function leaveTeam(): void {
+  joined = false;
+  rejoining = false;
+  myID = 0;
+  myTeam = -1;
+  myName = "";
+  selectedTeam = -1;
+  late = false;
+  saveToken(null);
+  teamNotice.classList.remove("hidden");
+  show("team");
+  renderBuzz();
 }
 
 function renderWho(): void {
@@ -234,6 +254,9 @@ function onMsg(m: ServerMsg): void {
           show("name");
         }
       }
+      if (joined && (myTeam < 0 || (teams[myTeam] ?? "") === "")) {
+        leaveTeam();
+      }
       lastBuzzer = m.buzzer;
       buzzedBy = m.buzzedBy;
       late = false;
@@ -263,6 +286,9 @@ function onMsg(m: ServerMsg): void {
     case "too_late":
       late = true;
       renderBuzz();
+      break;
+    case "kicked":
+      leaveTeam();
       break;
     case "error": {
       const text = errorText(m.msg);

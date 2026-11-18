@@ -197,3 +197,32 @@ func TestRemoveAutosave(t *testing.T) {
 		t.Fatal("file not removed")
 	}
 }
+
+func TestRestoreSkipsPlayersOfRemovedTeam(t *testing.T) {
+	g := boardGame(t)
+	anna := mustJoin(t, g, 0, "Anna", "")
+	bela := mustJoin(t, g, 1, "Béla", "")
+
+	path := filepath.Join(t.TempDir(), "autosave.json")
+	if err := SaveAutosave(path, g, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	sv, err := LoadAutosave(path)
+	if err != nil || sv == nil {
+		t.Fatalf("load: %v, %v", sv, err)
+	}
+
+	st := g.Settings
+	st.Teams = copyTeams(st.Teams)
+	st.Teams[0] = ""
+	g2 := NewGame(st, func() string { return "new" })
+	if err := g2.RestoreState(*sv, testQuiz(t)); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if g2.Player(anna.ID) != nil {
+		t.Fatal("player of removed team restored")
+	}
+	if g2.Player(bela.ID) == nil {
+		t.Fatal("other team's player lost")
+	}
+}

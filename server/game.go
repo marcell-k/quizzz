@@ -251,6 +251,21 @@ func (g *Game) Player(id int) *Player {
 	return nil
 }
 
+// dropPlayer forgets one player, including lockouts and a buzz in progress.
+func (g *Game) dropPlayer(id int) {
+	for i, p := range g.Players {
+		if p.ID == id {
+			g.Players = append(g.Players[:i], g.Players[i+1:]...)
+			break
+		}
+	}
+	delete(g.LockedPlayers, id)
+	if g.BuzzedBy == id {
+		g.BuzzedBy = 0
+		g.Buzzer = BuzzerLocked
+	}
+}
+
 // SetQuiz replaces the loaded quiz: clear board and current question.
 // Scores and players stay (plan: new game clears scores, loading does not).
 func (g *Game) SetQuiz(q *Quiz) {
@@ -288,22 +303,30 @@ func (g *Game) StartGame() bool {
 }
 
 // ApplySettings replaces the settings. Team names update in place, so scores
-// and players stay attached. A board size that no longer matches the loaded
-// quiz unloads the quiz: the teacher must load a matching file again.
-func (g *Game) ApplySettings(st Settings) (quizUnloaded bool) {
+// and players stay attached. Blanking a team name deletes that team: its
+// players, score, lockouts and undo entries are dropped. A board size that no
+// longer matches the loaded quiz unloads the quiz: the teacher must load a
+// matching file again. removedPlayers are the IDs whose live clients the hub
+// must kick back to the team picker.
+func (g *Game) ApplySettings(st Settings) (quizUnloaded bool, removedPlayers []int) {
 	st.normalize()
+	removedTeams := make([]bool, len(g.Teams))
 	for i := range g.Teams {
 		if i < len(st.Teams) {
+			if g.Teams[i].Name != "" && st.Teams[i] == "" {
+				removedTeams[i] = true
+			}
 			g.Teams[i].Name = st.Teams[i]
 		}
 	}
+	removedPlayers = g.dropTeams(removedTeams)
 	g.Settings = st
 	g.Points = append([]int(nil), st.Points...)
 	if g.Round == RoundSetup || (g.Round == RoundBoard && !g.Timer.Started) {
 		g.Timer.Reset(st.GameDuration())
 	}
 	if g.Quiz == nil {
-		return false
+		return false, removedPlayers
 	}
 	topics := len(g.Quiz.Topics)
 	questions := 0
@@ -311,7 +334,7 @@ func (g *Game) ApplySettings(st Settings) (quizUnloaded bool) {
 		questions = len(g.Quiz.Questions[0])
 	}
 	if topics == st.Topics && questions == st.Questions {
-		return false
+		return false, removedPlayers
 	}
 	g.Quiz = nil
 	g.QuizFile = ""
@@ -320,7 +343,44 @@ func (g *Game) ApplySettings(st Settings) (quizUnloaded bool) {
 	g.Buzzer = BuzzerLocked
 	g.BuzzedBy = 0
 	g.resetLockouts()
-	return true
+	return true, removedPlayers
+}
+
+// dropTeams deletes the players of removed teams and clears their score, lock
+// and undo history, so a reused slot starts empty. Returns removed player IDs.
+func (g *Game) dropTeams(removed []bool) []int {
+	var ids []int
+	kept := g.Players[:0]
+	for _, p := range g.Players {
+		if p.Team >= 0 && p.Team < len(removed) && removed[p.Team] {
+			ids = append(ids, p.ID)
+			delete(g.LockedPlayers, p.ID)
+			if g.BuzzedBy == p.ID {
+				g.BuzzedBy = 0
+				g.Buzzer = BuzzerLocked
+			}
+			continue
+		}
+		kept = append(kept, p)
+	}
+	g.Players = kept
+	for i, r := range removed {
+		if !r {
+			continue
+		}
+		g.Teams[i].Score = 0
+		if i < len(g.LockedTeams) {
+			g.LockedTeams[i] = false
+		}
+		keptLog := g.ScoreLog[:0]
+		for _, c := range g.ScoreLog {
+			if c.Team != i {
+				keptLog = append(keptLog, c)
+			}
+		}
+		g.ScoreLog = keptLog
+	}
+	return ids
 }
 
 // Join order: token match, then same team+name, then new player.
@@ -328,6 +388,11 @@ func (g *Game) Join(team int, name, token string) (*Player, error) {
 	if token != "" {
 		for _, p := range g.Players {
 			if p.Token == token {
+				if !g.validTeam(p.Team) {
+					// Stale identity: the player's team was removed.
+					g.dropPlayer(p.ID)
+					break
+				}
 				p.Online = true
 				return p, nil
 			}

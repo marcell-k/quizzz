@@ -22,6 +22,7 @@ export const t = {
   youBuzzed: "Jelentkeztél",
   waiting: "Várj a kérdésre",
   noTeams: "Nincs beállított csapat.",
+  teamRemoved: "A csapatod megszűnt. Válassz másikat.",
   board: "Tábla",
   quizFile: "Feladatsor",
   loadQuiz: "Betöltés",
