@@ -63,6 +63,7 @@ export const t = {
   title: "Cím",
   team: "Csapat",
   teamNames: "Csapatnevek",
+  teamCount: "Csapatok száma",
   gameMinutes: "Játékidő (perc)",
   lightningMinutes: "Villámidő (perc)",
   boardSize: "Tábla mérete",

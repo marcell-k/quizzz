@@ -85,6 +85,9 @@ function renderTimer(): void {
 
 function renderTeams(m: StateMsg): void {
   const buzzTeam = m.players.find((p) => p.id === m.buzzedBy)?.team ?? -1;
+  const many = m.teams.filter((x) => x.name !== "").length > 5;
+  teams.classList.toggle("many", many);
+  side.classList.toggle("many", many);
   teams.replaceChildren(
     ...m.teams.flatMap((team, i) => {
       if (team.name === "") return [];

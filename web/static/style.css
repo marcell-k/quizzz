@@ -1,5 +1,6 @@
 /* Overridable from ui/theme.css. Keep these on :root. */
 :root {
+  --sponsor-blend: multiply;
   --font: system-ui, sans-serif;
   --accent: #b00;
   --display-bg: #f3f1ec;
@@ -975,17 +976,6 @@ body.display-page {
   flex: 0 0 auto;
 }
 
-.display-timer {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 0.6rem;
-  background: #222;
-  color: #fff;
-}
-
 .display-timer .name {
   font-size: clamp(0.85rem, 1.1vw, 1.3rem);
   font-weight: 600;
@@ -998,18 +988,6 @@ body.display-page {
   font-size: clamp(1.4rem, 2.2vw, 2.4rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.display-team {
-  display: flex;
-  flex: 1 1 0;
-  align-items: center;
-  gap: 0.6rem;
-  min-width: 0;
-  padding: 0.45rem 0.8rem;
-  border: 1px solid #d8d4cc;
-  border-radius: 0.6rem;
-  background: #fff;
 }
 
 .display-team .dot {
@@ -1118,6 +1096,30 @@ body.display-page {
   min-height: 0;
 }
 
+.display-side.many {
+  flex-basis: 28vw;
+}
+
+.display-teams.many {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.display-teams.many .display-team {
+  max-height: none;
+  padding: 0.3rem 0.5rem;
+}
+
+.display-teams.many .display-team .name {
+  font-size: clamp(0.8rem, 1.1vw, 1.4rem);
+}
+
+.display-teams.many .display-team .score {
+  font-size: clamp(1.3rem, 2.2vw, 2.8rem);
+}
+
 .display-side {
   display: flex;
   flex: 0 0 17vw;
@@ -1217,16 +1219,21 @@ body.display-page {
 .display-sponsors {
   display: flex;
   flex: 0 0 10vh;
-  align-items: center;
-  justify-content: space-evenly;
-  gap: 1.5rem;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2vw;
+  min-height: 0;
 }
 
 .display-sponsor {
-  height: 8vh;
-  width: auto;
-  max-width: 18vw;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 16vw;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0.5vh 0;
   object-fit: contain;
+  mix-blend-mode: var(--sponsor-blend, multiply);
 }
 
 .display-conn {

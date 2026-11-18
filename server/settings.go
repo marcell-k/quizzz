@@ -21,7 +21,7 @@ const (
 	defaultGameDuration     = defaultGameMinutes * time.Minute
 	defaultLightningMinutes = 3
 	defaultLightningPoints  = 3000
-	maxTeams                = 5
+	maxTeams                = 10
 	maxGameMinutes          = 600
 	maxLightningMinutes     = 600
 )
@@ -64,9 +64,11 @@ func (s Settings) LightningDuration() time.Duration {
 // DefaultSettings returns the plan defaults: 5 teams, 5x6 board, 30 + 3 min,
 // points 1000-8000, subtract on, auto-open on, both wrong-answer rules off.
 func DefaultSettings() Settings {
+	teams := make([]string, maxTeams)
+	copy(teams, []string{"A csapat", "B csapat", "C csapat", "D csapat", "E csapat"})
 	return Settings{
 		Title:            defaultTitle,
-		Teams:            []string{"A csapat", "B csapat", "C csapat", "D csapat", "E csapat"},
+		Teams:            teams,
 		Topics:           defaultTopics,
 		Questions:        defaultQuestions,
 		Points:           append([]int(nil), defaultPoints...),

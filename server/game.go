@@ -462,12 +462,13 @@ func (g *Game) StartLightning(now time.Time) bool {
 }
 
 // EndGame stops the game: buzzer locked, current question cleared, timer
-// paused. Results come from Standings; history is added in a later step.
+// paused. Round becomes ENDED, so /admin and /display show the results
+// until the teacher presses New game.
 func (g *Game) EndGame(now time.Time) bool {
 	if g.Round == RoundEnded || g.Round == RoundSetup {
 		return false
 	}
-	g.Round = RoundSetup
+	g.Round = RoundEnded
 	g.Current = nil
 	g.BuzzedBy = 0
 	g.Buzzer = BuzzerLocked
@@ -478,7 +479,8 @@ func (g *Game) EndGame(now time.Time) bool {
 
 // StartNewGame resets scores, board, current question, undo log and timer.
 // Teams, players, the loaded quiz and settings stay. Allowed only after the
-// game has ended, so a running game cannot be wiped by accident.
+// game has ended, so a running game cannot be wiped by accident. Returns to
+// setup, the teacher presses Start.
 func (g *Game) StartNewGame() bool {
 	if g.Round != RoundEnded {
 		return false
@@ -492,7 +494,7 @@ func (g *Game) StartNewGame() bool {
 		}
 	}
 	g.Current = nil
-	g.Round = RoundBoard
+	g.Round = RoundSetup
 	g.Buzzer = BuzzerLocked
 	g.BuzzedBy = 0
 	g.ScoreLog = nil

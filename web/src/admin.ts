@@ -116,7 +116,8 @@ setTitle.type = "text";
 setTitle.maxLength = 80;
 setTitle.autocomplete = "off";
 
-const teamInputs = Array.from({ length: 5 }, () => {
+const maxTeams = 10;
+const teamInputs = Array.from({ length: maxTeams }, () => {
   const i = el("input");
   i.type = "text";
   i.maxLength = 30;
@@ -149,8 +150,22 @@ const ruleLockout = checkRow(t.ruleLockoutTeam);
 const ruleSubtract = checkRow(t.ruleSubtractPoints);
 const ruleAuto = checkRow(t.ruleAutoOpen);
 
+const teamFields = teamInputs.map((input, i) => field(`${t.team} ${i + 1}`, input));
 const namesRow = el("div", "team-names");
-namesRow.append(...teamInputs.map((input, i) => field(`${t.team} ${i + 1}`, input)));
+namesRow.append(...teamFields);
+
+const teamCountSel = el("select");
+for (let n = 2; n <= 10; n++) {
+  const o = el("option", "", String(n));
+  o.value = String(n);
+  teamCountSel.appendChild(o);
+}
+const teamCountRow = el("div", "size-row");
+teamCountRow.append(field(t.teamCount, teamCountSel));
+
+function showTeamFields(count: number): void {
+  teamFields.forEach((f, i) => f.classList.toggle("hidden", i >= count));
+}
 
 const checks = el("div", "checks");
 checks.append(ruleReopen.row, ruleLockout.row, ruleSubtract.row, ruleAuto.row);
@@ -173,6 +188,7 @@ sizeRow.append(
 const settingsLeft = el("div");
 settingsLeft.append(
   el("h3", "", t.teamNames),
+  teamCountRow,
   namesRow,
   el("h3", "", t.boardSize),
   sizeRow,
@@ -311,6 +327,12 @@ function renderSettings(s: Settings): void {
     const input = teamInputs[i];
     if (input) input.value = name;
   });
+  let count = 2;
+  s.teams.forEach((name, i) => {
+    if (name !== "") count = Math.max(count, i + 1);
+  });
+  teamCountSel.value = String(count);
+  showTeamFields(count);
   gameMin.value = String(s.gameMinutes);
   lightMin.value = String(s.lightningMinutes);
   lightningPts.value = String(s.lightningPoints);
@@ -346,7 +368,9 @@ function readSettings(): Settings | null {
   }
   return {
     title: setTitle.value.trim(),
-    teams: teamInputs.map((input) => input.value.trim()),
+	teams: teamInputs.map((input, i) =>
+      i < Number(teamCountSel.value) ? input.value.trim() : "",
+    ),
     topics,
     questions,
     points,
@@ -712,6 +736,15 @@ const conn = connect(
   },
 );
 
+teamCountSel.addEventListener("change", () => {
+  const count = Number(teamCountSel.value);
+  showTeamFields(count);
+  teamInputs.forEach((input, i) => {
+    if (i < count && input.value.trim() === "") {
+      input.value = `${String.fromCharCode(65 + i)} csapat`;
+    }
+  });
+});
 settingsPanel.addEventListener("change", () => {
   ruleLockout.input.disabled = !ruleReopen.input.checked;
   const settings = readSettings();

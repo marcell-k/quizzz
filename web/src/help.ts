@@ -203,7 +203,7 @@ const settings = section(
     [t.helpSetting, t.helpMeaning],
     [
       [t.title, "A kivetítő fejlécében és a böngésző címében látható név."],
-      [t.teamNames, "Legfeljebb 5 csapat. Az üresen hagyott csapat nem jelenik meg."],
+      [t.teamNames, "2 és 10 közötti csapat. Az üresen hagyott csapat nem jelenik meg."],
       [
         t.boardSize,
         `Témák × kérdések, 1 és 9 között. A méret módosítása kiüríti a betöltött feladatsort.`,

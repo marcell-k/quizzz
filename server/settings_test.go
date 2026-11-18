@@ -76,7 +76,7 @@ func TestLoadSettingsBadJSON(t *testing.T) {
 func TestSettingsNormalize(t *testing.T) {
 	s := Settings{
 		Title:            "  Verseny  ",
-		Teams:            []string{"A", "B", "C", "D", "E", "F", "G"},
+		Teams:            []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"},
 		Topics:           0,
 		Questions:        12,
 		Points:           []int{1000, -5},
@@ -89,7 +89,7 @@ func TestSettingsNormalize(t *testing.T) {
 	if s.Title != "Verseny" {
 		t.Fatalf("title = %q", s.Title)
 	}
-	if len(s.Teams) != maxTeams || s.Teams[4] != "E" {
+	if len(s.Teams) != maxTeams || s.Teams[9] != "J" {
 		t.Fatalf("teams = %v", s.Teams)
 	}
 	if s.Topics != defaultTopics || s.Questions != defaultQuestions {
