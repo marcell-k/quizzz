@@ -155,7 +155,8 @@ példa: feladatsor_23.jpg   → 2. téma, 3. kérdés
     false,
     item("Elfogadott kiterjesztés: ", code(".jpg"), ", ", code(".jpeg"), ", ", code(".png"), "."),
     item("A témaszám és a kérdésszám 1-től 9-ig terjed, egyjegyű, vezető nulla nélkül."),
-    item("A kép csak akkor jelenik meg, ha a fájlnév pontosan egyezik a feladatsor nevével."),
+    item("A kép csak akkor jelenik meg, ha a fájlnév pontosan egyezik a feladatsor nevével. A kis- és nagybetű, valamint az ékezet is számít."),
+    item("Kész minta: ", code("sample.txt"), ", ", code("sample_11.png"), ", ", code("sample_23.png"), ", ", code("sample_lightning.png"), "."),
     item("Ajánlott a képet legfeljebb 1280 px szélesre átméretezni."),
     item(
       "Villámkörhöz nem kötelező kép: ",

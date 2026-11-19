@@ -156,6 +156,7 @@ func quizBase(path string) string {
 // question numbers are 1-based, max 9, so one digit each (plan D19).
 func (q *Quiz) findImages(path string, questions int) {
 	dir := filepath.Dir(path)
+	names := dirFileNames(dir)
 	q.HasImage = make([][]bool, len(q.Topics))
 	q.Images = make([][]string, len(q.Topics))
 	for t := range q.Topics {
@@ -163,18 +164,35 @@ func (q *Quiz) findImages(path string, questions int) {
 		q.Images[t] = make([]string, questions)
 		for k := 0; k < questions; k++ {
 			name := fmt.Sprintf("%s_%d%d", q.File, t+1, k+1)
-			q.Images[t][k] = findImage(dir, name)
+			q.Images[t][k] = findImage(names, name)
 			q.HasImage[t][k] = q.Images[t][k] != ""
 		}
 	}
-	q.LightningImage = findImage(dir, q.File+"_lightning")
+	q.LightningImage = findImage(names, q.File+"_lightning")
+}
+
+// dirFileNames lists regular files by their exact stored names. Comparing
+// names from ReadDir, not os.Stat, keeps matching case-sensitive on Windows
+// and macOS, where the filesystem would otherwise accept a different case.
+func dirFileNames(dir string) map[string]bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			names[e.Name()] = true
+		}
+	}
+	return names
 }
 
 // findImage returns the file name with its extension, or "" when missing.
-func findImage(dir, name string) string {
+// The name must match exactly: no case folding and no Unicode normalization.
+func findImage(names map[string]bool, name string) string {
 	for _, ext := range imageExts {
-		info, err := os.Stat(filepath.Join(dir, name+ext))
-		if err == nil && info.Mode().IsRegular() {
+		if names[name+ext] {
 			return name + ext
 		}
 	}

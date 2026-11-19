@@ -206,7 +206,7 @@ func TestApplySettings(t *testing.T) {
 	st.GameMinutes = 45
 	st.Points = []int{10, 20, 30, 40, 50, 60}
 	st.Rules.AutoOpen = false
-	if g.ApplySettings(st) {
+	if unloaded, _ := g.ApplySettings(st); unloaded {
 		t.Fatal("quiz unloaded without a size change")
 	}
 	if g.Teams[0].Name != "Piros" || g.Teams[0].Score != 500 {
@@ -226,7 +226,7 @@ func TestApplySettings(t *testing.T) {
 	}
 
 	st.Topics = 4
-	if !g.ApplySettings(st) {
+	if unloaded, _ := g.ApplySettings(st); !unloaded {
 		t.Fatal("quiz not unloaded on size change")
 	}
 	if g.Quiz != nil || g.Board != nil || g.Current != nil {
@@ -279,5 +279,92 @@ func TestSetQuizResetsPointsOnSizeChange(t *testing.T) {
 	}
 	if g.Timer.Remaining != g.Settings.GameDuration() {
 		t.Fatalf("timer = %v", g.Timer.Remaining)
+	}
+}
+
+func copyTeams(names []string) []string {
+	return append([]string(nil), names...)
+}
+
+func TestApplySettingsRenameKeepsTeam(t *testing.T) {
+	g := boardGame(t)
+	anna := mustJoin(t, g, 0, "Anna", "")
+	g.Teams[0].Score = 500
+	g.ScoreLog = append(g.ScoreLog, ScoreChange{Team: 0, Delta: 500})
+
+	st := g.Settings
+	st.Teams = copyTeams(st.Teams)
+	st.Teams[0] = "Orange"
+	_, removed := g.ApplySettings(st)
+
+	if len(removed) != 0 {
+		t.Fatalf("removed players = %v", removed)
+	}
+	if g.Teams[0].Name != "Orange" || g.Teams[0].Score != 500 {
+		t.Fatalf("team = %+v", g.Teams[0])
+	}
+	if g.Player(anna.ID) == nil || g.Player(anna.ID).Team != 0 {
+		t.Fatal("player lost on rename")
+	}
+	if len(g.ScoreLog) != 1 {
+		t.Fatalf("undo log = %+v", g.ScoreLog)
+	}
+}
+
+func TestApplySettingsRemovesTeamMembers(t *testing.T) {
+	g := boardGame(t)
+	anna := mustJoin(t, g, 0, "Anna", "")
+	bela := mustJoin(t, g, 1, "Béla", "")
+	g.Teams[0].Score = 500
+	g.ScoreLog = append(g.ScoreLog,
+		ScoreChange{Team: 0, Delta: 500},
+		ScoreChange{Team: 1, Delta: 100},
+	)
+	g.LockedPlayers = map[int]bool{anna.ID: true}
+	g.BuzzedBy = anna.ID
+	g.Buzzer = BuzzerBuzzed
+
+	st := g.Settings
+	st.Teams = copyTeams(st.Teams)
+	st.Teams[0] = ""
+	_, removed := g.ApplySettings(st)
+
+	if len(removed) != 1 || removed[0] != anna.ID {
+		t.Fatalf("removed = %v, want [%d]", removed, anna.ID)
+	}
+	if g.Player(anna.ID) != nil {
+		t.Fatal("removed player kept")
+	}
+	if g.Player(bela.ID) == nil {
+		t.Fatal("other team's player lost")
+	}
+	if g.Teams[0].Score != 0 {
+		t.Fatalf("removed team score = %d", g.Teams[0].Score)
+	}
+	if len(g.ScoreLog) != 1 || g.ScoreLog[0].Team != 1 {
+		t.Fatalf("undo log = %+v", g.ScoreLog)
+	}
+	if g.LockedPlayers[anna.ID] {
+		t.Fatal("lockout kept for removed player")
+	}
+	if g.BuzzedBy != 0 || g.Buzzer != BuzzerLocked {
+		t.Fatalf("buzz kept: buzzer = %v, by %d", g.Buzzer, g.BuzzedBy)
+	}
+}
+
+func TestJoinStaleTokenAfterTeamRemoved(t *testing.T) {
+	g := boardGame(t)
+	anna := mustJoin(t, g, 0, "Anna", "")
+
+	st := g.Settings
+	st.Teams = copyTeams(st.Teams)
+	st.Teams[0] = ""
+	g.ApplySettings(st)
+
+	if _, err := g.Join(0, "", anna.Token); err != ErrBadTeam {
+		t.Fatalf("stale token join error = %v, want ErrBadTeam", err)
+	}
+	if len(g.Players) != 0 {
+		t.Fatalf("stale player kept: %+v", g.Players)
 	}
 }

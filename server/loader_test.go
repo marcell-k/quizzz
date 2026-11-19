@@ -211,6 +211,39 @@ func TestLoadQuizImages(t *testing.T) {
 	}
 }
 
+func TestLoadQuizSampleExactImages(t *testing.T) {
+	q, warnings, err := LoadQuiz(filepath.Join("quizzes", "sample.txt"), 5, 6)
+	if err != nil {
+		t.Fatalf("LoadQuiz: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %v, want none", warnings)
+	}
+	if !q.HasImage[0][0] || q.Images[0][0] != "sample_11.png" {
+		t.Errorf("Images[0][0] = %q, HasImage = %v, want sample_11.png", q.Images[0][0], q.HasImage[0][0])
+	}
+	if !q.HasImage[1][2] || q.Images[1][2] != "sample_23.png" {
+		t.Errorf("Images[1][2] = %q, HasImage = %v, want sample_23.png", q.Images[1][2], q.HasImage[1][2])
+	}
+	if q.LightningImage != "sample_lightning.png" {
+		t.Errorf("LightningImage = %q, want sample_lightning.png", q.LightningImage)
+	}
+}
+
+func TestLoadQuizImageNameIsExact(t *testing.T) {
+	dir := t.TempDir()
+	path := writeFile(t, dir, "quiz.txt", "T1\nQ1\n")
+	writeFile(t, dir, "Quiz_11.png", "x")
+
+	q, _, err := LoadQuiz(path, 1, 1)
+	if err != nil {
+		t.Fatalf("LoadQuiz: %v", err)
+	}
+	if q.HasImage[0][0] {
+		t.Errorf("HasImage[0][0] = true for Quiz_11.png, want exact quiz_11.png only")
+	}
+}
+
 func TestLoadQuizNoImages(t *testing.T) {
 	path := writeFile(t, t.TempDir(), "plain.txt", "T1\nQ1\n")
 	q, _, err := LoadQuiz(path, 1, 1)
