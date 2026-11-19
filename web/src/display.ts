@@ -140,7 +140,7 @@ function whoLine(m: StateMsg): HTMLElement {
     line.append(dot, el("span", "", `${team}: ${by.name}`));
   } else if (m.buzzer === "open") {
     line.classList.add("open");
-    line.textContent = t.buzzOpen;
+    // line.textContent = t.buzzOpen;
   }
   return line;
 }

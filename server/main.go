@@ -42,6 +42,8 @@ func mediaHandler(dir string, exts ...string) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
+		// Swapping an image file must show up on next reload, no cache busting.
+		w.Header().Set("Cache-Control", "no-store")
 		http.ServeFile(w, r, filepath.Join(dir, name))
 	}
 }

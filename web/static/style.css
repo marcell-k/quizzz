@@ -956,7 +956,7 @@ body.display-page {
   gap: 0.6rem;
   height: 100dvh;
   box-sizing: border-box;
-  padding: 0.6rem 1.4rem;
+  padding: 0.6rem 4.4rem;
 }
 
 .display-main {
@@ -1180,6 +1180,7 @@ body.display-page {
   display: flex;
   flex: 0 0 8vh;
   align-items: center;
+  justify-content: center;
   gap: 1rem;
   min-height: 0;
 }
@@ -1208,7 +1209,7 @@ body.display-page {
 }
 
 .display-side.many {
-  flex-basis: 28vw;
+  flex-basis: 23vw;
 }
 
 .display-teams.many {
@@ -1233,7 +1234,7 @@ body.display-page {
 
 .display-side {
   display: flex;
-  flex: 0 0 17vw;
+  flex: 0 0 15vw;
   flex-direction: column;
   gap: 0.6rem;
   min-width: 0;
@@ -1242,7 +1243,7 @@ body.display-page {
 
 .display-teams {
   display: flex;
-  flex: 1;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 0.6rem;
   min-height: 0;
@@ -1275,7 +1276,7 @@ body.display-page {
 
 .display-team {
   display: flex;
-  flex: 1 1 0;
+  flex: 0 0 auto;
   flex-direction: column;
   justify-content: center;
   gap: 0.2rem;
