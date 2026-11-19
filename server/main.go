@@ -137,6 +137,15 @@ func listen() (net.Listener, int, error) {
 	}
 	return nil, 0, lastErr
 }
+// noCache makes browsers revalidate HTML, JS and CSS on every load, so a
+// rebuilt quiz.exe never serves stale files from a phone's cache.
+func noCache(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		h.ServeHTTP(w, r)
+	})
+}
+
 func logReq(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("req %s %s %s", r.RemoteAddr, r.Method, r.URL.Path)
@@ -171,6 +180,7 @@ func main() {
 
 	page := func(name string) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFileFS(w, r, dist, name)
 		}
 	}
@@ -197,7 +207,7 @@ func main() {
 	mux.HandleFunc("GET /media/quizzes/{name}", mediaHandler(quizDir, ".jpg", ".jpeg", ".png"))
 	mux.HandleFunc("GET /media/ui/{name}", uiHandler(uiDir))
 	mux.HandleFunc("GET /media/sponsors/{name}", mediaHandler(sponsorsDir, ".jpg", ".jpeg", ".png"))
-	mux.Handle("GET /", http.FileServerFS(dist))
+	mux.Handle("GET /", noCache(http.FileServerFS(dist)))
 
 	log.Printf("local:  http://localhost:%d/admin", port)
 	log.Printf("phones: %s", joinURL(port))
