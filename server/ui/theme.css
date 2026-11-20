@@ -1,0 +1,7 @@
+body.display-page {
+  background-color: var(--display-bg);
+  background-image: url("/media/ui/background.jpg?v=2");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}

@@ -1,0 +1,38 @@
+/* ui/theme.css.example: copy to ui/theme.css, uncomment lines to change. */
+/* Background image: ui/background.jpg. Other file: absolute path, e.g. url(/media/ui/hatter.png). */
+:root {
+  /* --accent: #b00; */
+  /* --font: system-ui, sans-serif; */
+  /* --sponsor-blend: multiply; */
+
+  /* --bg-image: url(/media/ui/background.jpg); */
+  /* --bg-blur: 8px; */
+  /* --bg-overlay: rgb(243 241 236 / 0.6); */
+
+  /* --display-bg: #f3f1ec; */
+  /* --display-text: #161616; */
+  /* --muted: #5a5a5a; */
+  /* --panel-glass: rgb(255 255 255 / 0.72); */
+  /* --panel-bg: #fff; */
+  /* --panel-text: #161616; */
+  /* --panel-border: #d8d4cc; */
+  /* --topic-bg: #e4e0d8; */
+  /* --topic-text: #161616; */
+  /* --cell-bg: #fff; */
+  /* --cell-text: #161616; */
+  /* --cell-used-bg: #dedbd4; */
+  /* --cell-used-text: #a19d95; */
+  /* --timer-bg: #222; */
+  /* --timer-text: #fff; */
+
+  /* --team-1: #e6194b; */
+  /* --team-2: #3cb44b; */
+  /* --team-3: #4363d8; */
+  /* --team-4: #f58231; */
+  /* --team-5: #911eb4; */
+  /* --team-6: #42d4f4; */
+  /* --team-7: #f032e6; */
+  /* --team-8: #9a6324; */
+  /* --team-9: #808080; */
+  /* --team-10: #c9a400; */
+}
