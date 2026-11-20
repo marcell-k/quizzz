@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -261,12 +262,39 @@ func TestLoadQuizBadSize(t *testing.T) {
 	}{
 		{0, 6},
 		{5, 0},
-		{10, 6},
-		{5, 10},
+		{8, 6},
+		{5, 7},
 	} {
 		_, _, err := LoadQuiz("does-not-exist.txt", tc.topics, tc.questions)
 		if err == nil || !strings.Contains(err.Error(), "board size") {
 			t.Errorf("size %dx%d: err = %v, want board size error", tc.topics, tc.questions, err)
+		}
+	}
+}
+
+func TestLoadQuizMaxSize(t *testing.T) {
+	var b strings.Builder
+	for topic := 1; topic <= maxTopics; topic++ {
+		fmt.Fprintf(&b, "Téma%d\n", topic)
+		for q := 1; q <= maxQuestions; q++ {
+			fmt.Fprintf(&b, "Kérdés%d%d\n", topic, q)
+		}
+		b.WriteString("\n")
+	}
+	path := writeFile(t, t.TempDir(), "max.txt", b.String())
+	q, warnings, err := LoadQuiz(path, maxTopics, maxQuestions)
+	if err != nil {
+		t.Fatalf("LoadQuiz: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("warnings = %v, want none", warnings)
+	}
+	if len(q.Topics) != maxTopics || len(q.Questions) != maxTopics {
+		t.Fatalf("got %d topics, want %d", len(q.Topics), maxTopics)
+	}
+	for i, qs := range q.Questions {
+		if len(qs) != maxQuestions {
+			t.Errorf("topic %d: %d questions, want %d", i+1, len(qs), maxQuestions)
 		}
 	}
 }

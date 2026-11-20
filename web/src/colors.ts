@@ -1,4 +1,5 @@
-// Hardcoded team palette, shared by player, admin and display.
+// Default team palette, shared by player, admin and display.
+// ui/theme.css may override it with --team-1 .. --team-10.
 export const teamColors: readonly string[] = [
   "#e6194b",
   "#3cb44b",
@@ -13,6 +14,10 @@ export const teamColors: readonly string[] = [
 ];
 
 export function teamColor(team: number): string {
-  const c = teamColors[team % teamColors.length];
-  return c ?? "#666";
+  const i = team % teamColors.length;
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue(`--team-${i + 1}`)
+    .trim();
+  if (v !== "") return v;
+  return teamColors[i] ?? "#666";
 }

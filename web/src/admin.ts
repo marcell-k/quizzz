@@ -165,9 +165,9 @@ const gameMin = numInput(1, 600);
 const lightMin = numInput(0, 600);
 const lightningPts = numInput(1, 10000000);
 
-function sizeSelect(): HTMLSelectElement {
+function sizeSelect(max: number): HTMLSelectElement {
   const s = el("select");
-  for (let n = 1; n <= 9; n++) {
+  for (let n = 1; n <= max; n++) {
     const o = el("option", "", String(n));
     o.value = String(n);
     s.appendChild(o);
@@ -175,8 +175,8 @@ function sizeSelect(): HTMLSelectElement {
   return s;
 }
 
-const topicsSel = sizeSelect();
-const questionsSel = sizeSelect();
+const topicsSel = sizeSelect(7);
+const questionsSel = sizeSelect(6);
 
 const pointsRow = el("div", "points-row");
 const pointInputs: HTMLInputElement[] = [];
@@ -371,8 +371,8 @@ function readSettings(): Settings | null {
   const lightningPoints = Number(lightningPts.value);
   const points = pointInputs.map((input) => Number(input.value));
   if (
-    !validInt(topics, 1, 9) ||
-    !validInt(questions, 1, 9) ||
+    !validInt(topics, 1, 7) ||
+    !validInt(questions, 1, 6) ||
     !validInt(gameMinutes, 1, 600) ||
     !validInt(lightningMinutes, 0, 600) ||
     !validInt(lightningPoints, 1, 10000000) ||

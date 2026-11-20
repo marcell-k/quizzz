@@ -140,7 +140,7 @@ Második témához tartozó 2. kérdés`),
     item("A sorok végéről a szóközök és tabulátorok levágódnak."),
     item("Üres kérdéssor nem lehet. Kevesebb sor vagy üres kérdés hibát ad a pontos sorszámmal."),
     item("A szükségesnél több kérdéssor figyelmeztetéssel kimarad."),
-    item("A témák és a kérdések száma 1 és 9 között állítható be."),
+    item("A témák száma 1 és 7, a kérdéseké 1 és 6 között állítható be."),
   ),
 );
 
@@ -154,7 +154,7 @@ példa: feladatsor_23.jpg   → 2. téma, 3. kérdés
   list(
     false,
     item("Elfogadott kiterjesztés: ", code(".jpg"), ", ", code(".jpeg"), ", ", code(".png"), "."),
-    item("A témaszám és a kérdésszám 1-től 9-ig terjed, egyjegyű, vezető nulla nélkül."),
+    item("A témaszám 1-től 7-ig, a kérdésszám 1-től 6-ig terjed, egyjegyű, vezető nulla nélkül."),
     item("A kép csak akkor jelenik meg, ha a fájlnév pontosan egyezik a feladatsor nevével. A kis- és nagybetű, valamint az ékezet is számít."),
     item("Kész minta: ", code("sample.txt"), ", ", code("sample_11.png"), ", ", code("sample_23.png"), ", ", code("sample_lightning.png"), "."),
     item("Ajánlott a képet legfeljebb 1280 px szélesre átméretezni."),
@@ -173,6 +173,7 @@ const look = section(
   p("A ", code("ui/"), " mappa nem kötelező. Hiányzó fájl esetén az alapértelmezett kinézet marad."),
   pre(`ui/
   logo.png      logó a tanári fejlécen, a kivetítőn és a telefonon
+  background.jpg  háttérkép a kivetítőn (nem kötelező)
   theme.css     színek és betűtípus felülírása
   sponsors/     szponzorképek a kivetítő alján (nem kötelező)`),
   p("Példa a ", code("ui/theme.css"), " fájlra:"),
@@ -181,12 +182,25 @@ const look = section(
   --font: Georgia, serif;
   --display-bg: #f3f1ec;
   --display-text: #161616;
+  --bg-image: url(/media/ui/background.jpg);
+  --bg-blur: 6px;
+  --bg-overlay: rgb(243 241 236 / 0.6);
+  --team-1: #d33;
 }`),
   list(
     false,
     item(code("--accent"), ": a jelentkező gomb és a kiemelések színe."),
     item(code("--font"), ": a teljes felület betűtípusa."),
     item(code("--display-bg"), " és ", code("--display-text"), ": a kivetítő háttere és szövegszíne."),
+    item(code("--bg-image"), ": háttérkép, alapból ", code("url(/media/ui/background.jpg)"), ". Másik fájlhoz abszolút útvonal kell, pl. ", code("url(/media/ui/hatter.png)"), ". Háttér nélkül: ", code("none"), "."),
+    item(code("--bg-blur"), ": a háttér elmosása (pl. ", code("8px"), ", kikapcsolva ", code("0px"), ")."),
+    item(code("--bg-overlay"), ": a háttérre kerülő színes réteg, a szöveg olvashatósága miatt."),
+    item(code("--panel-glass"), ": a kérdés mögötti áttetsző kártya színe."),
+    item(code("--panel-bg"), ", ", code("--panel-text"), ", ", code("--panel-border"), ": csapatkártyák és eredménysorok."),
+    item(code("--topic-bg"), ", ", code("--topic-text"), ", ", code("--cell-bg"), ", ", code("--cell-text"), ", ", code("--cell-used-bg"), ", ", code("--cell-used-text"), ": a tábla színei."),
+    item(code("--timer-bg"), ", ", code("--timer-text"), ", ", code("--muted"), ": időmérő és halvány szöveg."),
+    item(code("--team-1"), " … ", code("--team-10"), ": csapatszínek. Alapértelmezett a beépített 10 színű paletta."),
+    item("Ajánlott háttérkép: legfeljebb 1920 px széles."),
     item("A ", code("ui/sponsors/"), " képeit a kivetítő alján jeleníti meg, fájlnév szerint rendezve."),
   ),
 );
@@ -207,7 +221,7 @@ const settings = section(
       [t.teamNames, "2 és 10 közötti csapat. Az üresen hagyott csapat nem jelenik meg."],
       [
         t.boardSize,
-        `Témák × kérdések, 1 és 9 között. A méret módosítása kiüríti a betöltött feladatsort.`,
+        `Témák × kérdések: témák 1–7, kérdések 1–6. A méret módosítása kiüríti a betöltött feladatsort.`,
       ],
       [
         t.questionPoints,

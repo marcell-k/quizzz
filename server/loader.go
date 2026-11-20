@@ -40,7 +40,8 @@ type Quiz struct {
 
 const (
 	minBoardSize = 1
-	maxBoardSize = 9
+	maxTopics    = 7
+	maxQuestions = 6
 )
 
 var imageExts = []string{".jpg", ".jpeg", ".png"}
@@ -48,10 +49,10 @@ var imageExts = []string{".jpg", ".jpeg", ".png"}
 // LoadQuiz reads a legacy .txt quiz file. Board size comes from settings (plan D19).
 // It returns warnings for ignored extra lines and a *FormatError for broken structure.
 func LoadQuiz(path string, topics, questions int) (*Quiz, []string, error) {
-	if topics < minBoardSize || topics > maxBoardSize ||
-		questions < minBoardSize || questions > maxBoardSize {
-		return nil, nil, fmt.Errorf("board size must be %d-%d, got %dx%d",
-			minBoardSize, maxBoardSize, topics, questions)
+	if topics < minBoardSize || topics > maxTopics ||
+		questions < minBoardSize || questions > maxQuestions {
+		return nil, nil, fmt.Errorf("board size must be topics %d-%d, questions %d-%d, got %dx%d",
+			minBoardSize, maxTopics, minBoardSize, maxQuestions, topics, questions)
 	}
 
 	raw, err := os.ReadFile(path)
@@ -153,7 +154,7 @@ func quizBase(path string) string {
 
 // findImages sets HasImage, Images and LightningImage from files next to the
 // quiz: <base>_<topic><question>.<ext> and <base>_lightning.<ext>. Topic and
-// question numbers are 1-based, max 9, so one digit each (plan D19).
+// question numbers are 1-based, max 7 and 6, so one digit each (plan D19).
 func (q *Quiz) findImages(path string, questions int) {
 	dir := filepath.Dir(path)
 	names := dirFileNames(dir)

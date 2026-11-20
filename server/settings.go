@@ -98,10 +98,10 @@ func (s *Settings) normalize() {
 	}
 	s.Teams = teams
 
-	if s.Topics < minBoardSize || s.Topics > maxBoardSize {
+	if s.Topics < minBoardSize || s.Topics > maxTopics {
 		s.Topics = defaultTopics
 	}
-	if s.Questions < minBoardSize || s.Questions > maxBoardSize {
+	if s.Questions < minBoardSize || s.Questions > maxQuestions {
 		s.Questions = defaultQuestions
 	}
 

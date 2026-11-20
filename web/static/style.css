@@ -1,10 +1,26 @@
 /* Overridable from ui/theme.css. Keep these on :root. */
 :root {
   --sponsor-blend: multiply;
-  --font: system-ui, sans-serif;
+  --font: urbanist, system-ui, sans-serif;
   --accent: #b00;
   --display-bg: #f3f1ec;
   --display-text: #161616;
+  --muted: #5a5a5a;
+  --panel-bg: #fff;
+  --panel-text: #161616;
+  --panel-border: #d8d4cc;
+  --panel-glass: rgb(255 255 255 / 0.72);
+  --topic-bg: #e4e0d8;
+  --topic-text: #161616;
+  --cell-bg: #fff;
+  --cell-text: #161616;
+  --cell-used-bg: #dedbd4;
+  --cell-used-text: #a19d95;
+  --timer-bg: #222;
+  --timer-text: #fff;
+  --bg-image: url(/media/ui/background.jpg);
+  --bg-blur: 4px;
+  --bg-overlay: rgb(243 241 236 / 0.6);
 }
 
 body {
@@ -950,6 +966,24 @@ body.display-page {
   color: var(--display-text);
 }
 
+body.display-page::before,
+body.display-page::after {
+  content: "";
+  position: fixed;
+  inset: -3rem;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body.display-page::before {
+  background: var(--bg-image) center / cover no-repeat;
+  filter: blur(var(--bg-blur));
+}
+
+body.display-page::after {
+  background: var(--bg-overlay);
+}
+
 .display {
   display: flex;
   flex-direction: column;
@@ -994,7 +1028,8 @@ body.display-page {
   padding: 0.3rem 0.8rem;
   text-align: center;
   border-radius: 0.5rem;
-  background: #e4e0d8;
+  background: var(--topic-bg);
+  color: var(--topic-text);
   font-size: clamp(1rem, 1.6vw, 1.9rem);
   font-weight: 700;
   overflow-wrap: anywhere;
@@ -1005,7 +1040,8 @@ body.display-page {
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  background: #fff;
+  background: var(--cell-bg);
+  color: var(--cell-text);
   box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
   font-size: clamp(1.2rem, 2.3vw, 2.8rem);
   font-weight: 700;
@@ -1013,8 +1049,8 @@ body.display-page {
 }
 
 .display-cell.used {
-  background: #dedbd4;
-  color: #a19d95;
+  background: var(--cell-used-bg);
+  color: var(--cell-used-text);
   box-shadow: none;
 }
 
@@ -1027,12 +1063,19 @@ body.display-page {
   justify-content: center;
   gap: 1.2rem;
   text-align: center;
+  box-sizing: border-box;
+  padding: 1.2rem 2rem;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: var(--panel-glass);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 
 .display-qmeta {
   margin: 0;
   font-size: clamp(1rem, 1.7vw, 2rem);
-  color: #5a5a5a;
+  color: var(--muted);
 }
 
 .display-qtext {
@@ -1146,9 +1189,10 @@ body.display-page {
   align-items: center;
   gap: 1rem;
   padding: 0.55rem 1rem;
-  border: 1px solid #d8d4cc;
+  border: 1px solid var(--panel-border);
   border-radius: 0.6rem;
-  background: #fff;
+  background: var(--panel-bg);
+  color: var(--panel-text);
 }
 
 .display-result .rank {
@@ -1198,7 +1242,7 @@ body.display-page {
   font-size: clamp(1.4rem, 3.4vh, 3rem);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: center;
 }
 
 .display-body {
@@ -1256,8 +1300,8 @@ body.display-page {
   align-items: center;
   padding: 0.5rem 0.8rem;
   border-radius: 0.6rem;
-  background: #222;
-  color: #fff;
+  background: var(--timer-bg);
+  color: var(--timer-text);
 }
 
 .display-timer .name {
@@ -1284,9 +1328,10 @@ body.display-page {
   min-height: 0;
   max-height: 22vh;
   padding: 0.4rem 0.8rem;
-  border: 3px solid #d8d4cc;
+  border: 3px solid var(--panel-border);
   border-radius: 0.6rem;
-  background: #fff;
+  background: var(--panel-bg);
+  color: var(--panel-text);
 }
 
 .display-team .row {
